@@ -173,6 +173,29 @@ isn't obvious from the diff alone. Never squash the incremental history before
 submission — the brief explicitly wants to see the evolution, not a single
 clean final commit.
 
+## Mid-phase checkpoints (important)
+
+Do not silently complete an entire phase (or a large chunk of one) before
+raising commits. Instead, pause and explicitly suggest a commit — with a
+proposed message — at each of these natural breakpoints, even within a
+single phase:
+
+- After a new data model / schema piece is added and passes a basic sanity
+  check
+- After a new endpoint (or small group of closely related endpoints) is
+  implemented and its tests pass
+- After a frontend view/component is functional and visually verified
+- Before starting a materially different sub-task within the same phase
+  (e.g. "models are done, now starting the seed script logic" — pause first)
+- Any time you're about to touch 5+ files in one sitting
+
+When you reach one of these points, stop and say something like:
+"This looks like a good commit checkpoint — [1-sentence summary]. Suggested
+commit message: '...'. Want me to commit this before continuing?" Then wait
+for confirmation before proceeding to the next sub-task. Do not batch
+multiple unrelated pieces of work into one commit just because they happened
+in the same session.
+
 ## Required artifacts — maintain these throughout, not just at the end
 
 - `docs/requirements.md` — already drafted; do not rewrite, only reference
