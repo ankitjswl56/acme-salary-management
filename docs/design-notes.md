@@ -1,5 +1,16 @@
 # Salary Management Software — Design Notes
 
+## No hard delete for Employee
+
+The Employee CRUD API (Phase 3) intentionally has no `DELETE /employees/{id}`.
+Employees are offboarded via `PATCH .../status = inactive`, not row deletion.
+Hard-deleting an employee would cascade into deleting or orphaning their
+`SalaryRecord` history — directly undermining the append-only audit trail
+that's the core value proposition of this system (see CLAUDE.md's data model
+section). `status` already models "no longer employed" without destroying
+history, so a destructive delete endpoint would be redundant risk with no
+real use case.
+
 ## Enum columns store `.value`, not `.name` (SQLAlchemy default is the opposite)
 
 SQLAlchemy's `Enum` type persists a Python `Enum` member by its **name** by
