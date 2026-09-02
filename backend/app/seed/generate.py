@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from faker import Faker
 
 from app.models.enums import ChangeType, EmployeeStatus, Gender
-from app.seed.reference_data import COUNTRIES, DEPARTMENTS, LEVELS, Country, Department, level_title
+from app.reference_data import COUNTRIES, DEPARTMENTS, LEVELS, Country, Department, level_title
 
 SEED = 42
 
