@@ -1,7 +1,11 @@
 from datetime import date
 
+import pytest
+
 from app.models import ChangeType, Employee, EmployeeStatus, SalaryRecord
-from app.services.salary import get_current_salary_record, get_salary_history
+from app.schemas.salary_record import SalaryRecordCreate
+from app.services.currency import InvalidAmountError, UnsupportedCurrencyError
+from app.services.salary import create_salary_record, get_current_salary_record, get_salary_history
 
 TODAY = date(2026, 9, 2)
 
@@ -110,3 +114,46 @@ def test_salary_history_includes_future_dated_records_ordered_newest_first(sessi
     history = get_salary_history(session, employee.id)
 
     assert [record.id for record in history] == [future.id, raise_.id, hire.id]
+
+
+def test_create_salary_record_normalizes_currency_to_usd(session):
+    employee = _make_employee(session)
+    data = SalaryRecordCreate(
+        amount=1000, currency="GBP", effective_date=date(2021, 1, 1), change_type=ChangeType.raise_
+    )
+
+    record = create_salary_record(session, employee, data)
+
+    assert record.id is not None
+    assert record.fx_rate_to_usd == pytest.approx(1.27)
+    assert record.amount_usd_snapshot == pytest.approx(1270.0)
+
+
+def test_create_salary_record_rejects_effective_date_before_hire(session):
+    employee = _make_employee(session)  # hired 2020-01-01
+    data = SalaryRecordCreate(
+        amount=1000, currency="USD", effective_date=date(2019, 1, 1), change_type=ChangeType.hire
+    )
+
+    with pytest.raises(ValueError, match="hire_date"):
+        create_salary_record(session, employee, data)
+
+
+def test_create_salary_record_rejects_unsupported_currency(session):
+    employee = _make_employee(session)
+    data = SalaryRecordCreate(
+        amount=1000, currency="XYZ", effective_date=date(2021, 1, 1), change_type=ChangeType.raise_
+    )
+
+    with pytest.raises(UnsupportedCurrencyError):
+        create_salary_record(session, employee, data)
+
+
+def test_create_salary_record_rejects_negative_amount(session):
+    employee = _make_employee(session)
+    data = SalaryRecordCreate(
+        amount=-500, currency="USD", effective_date=date(2021, 1, 1), change_type=ChangeType.raise_
+    )
+
+    with pytest.raises(InvalidAmountError):
+        create_salary_record(session, employee, data)

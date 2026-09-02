@@ -11,7 +11,9 @@ from datetime import date
 
 from sqlmodel import Session, select
 
-from app.models import SalaryRecord
+from app.models import Employee, SalaryRecord
+from app.schemas.salary_record import SalaryRecordCreate
+from app.services.currency import normalize_to_usd
 
 
 def get_current_salary_record(
@@ -36,3 +38,28 @@ def get_salary_history(session: Session, employee_id: int) -> list[SalaryRecord]
         .order_by(SalaryRecord.effective_date.desc(), SalaryRecord.id.desc())
     )
     return list(session.exec(statement).all())
+
+
+def create_salary_record(session: Session, employee: Employee, data: SalaryRecordCreate) -> SalaryRecord:
+    """Appends a new SalaryRecord — never updates an existing one. currency
+    amount validation and USD normalization is delegated to normalize_to_usd()
+    (fixed FX rate, non-negative amount); the only check here is that a
+    salary change can't predate the employee's hire."""
+    if data.effective_date < employee.hire_date:
+        raise ValueError("effective_date cannot be before the employee's hire_date")
+
+    amount_usd_snapshot, fx_rate_to_usd = normalize_to_usd(data.amount, data.currency)
+
+    record = SalaryRecord(
+        employee_id=employee.id,
+        amount=data.amount,
+        currency=data.currency,
+        amount_usd_snapshot=amount_usd_snapshot,
+        fx_rate_to_usd=fx_rate_to_usd,
+        effective_date=data.effective_date,
+        change_type=data.change_type,
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
