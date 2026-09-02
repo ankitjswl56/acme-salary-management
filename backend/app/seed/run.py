@@ -1,8 +1,9 @@
 from datetime import date
 
 from app.db import engine, init_db
-from app.models import Employee, SalaryRecord
+from app.models import Employee, SalaryRecord, User
 from app.seed.generate import generate_employees, generate_salary_records
+from app.seed.users import generate_demo_user_rows
 
 EMPLOYEE_COUNT = 10_000
 
@@ -28,3 +29,16 @@ def seed_core_data(count: int = EMPLOYEE_COUNT, today: date | None = None) -> tu
         conn.execute(SalaryRecord.__table__.insert(), salary_records)
 
     return len(employee_rows), len(salary_records)
+
+
+def seed_demo_users() -> int:
+    """Clears and reseeds the 3 demo accounts (one per role, shared password)."""
+    init_db()
+
+    user_rows = generate_demo_user_rows()
+
+    with engine.begin() as conn:
+        conn.execute(User.__table__.delete())
+        conn.execute(User.__table__.insert(), user_rows)
+
+    return len(user_rows)
