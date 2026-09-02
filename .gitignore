@@ -1,0 +1,22 @@
+# env
+.env
+.env.local
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# node
+node_modules/
+dist/
+build/
+
+# db
+*.db
+*.sqlite3
+
+# os
+.DS_Store

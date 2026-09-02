@@ -1,0 +1,1 @@
+# Salary Management Software — AI Logs
