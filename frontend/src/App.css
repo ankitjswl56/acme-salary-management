@@ -1,0 +1,6 @@
+#center {
+  max-width: 32rem;
+  margin: 4rem auto;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
