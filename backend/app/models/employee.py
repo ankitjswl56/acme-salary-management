@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.enums import EmployeeStatus, Gender
+from app.models.enums import EmployeeStatus, Gender, enum_column
 
 if TYPE_CHECKING:
     from app.models.salary_record import SalaryRecord
@@ -16,8 +16,11 @@ class Employee(SQLModel, table=True):
     country: str = Field(index=True)
     department: str = Field(index=True)
     role: str
-    gender: Optional[Gender] = None
+    gender: Optional[Gender] = Field(default=None, sa_column=enum_column(Gender, nullable=True))
     hire_date: date
-    status: EmployeeStatus = Field(default=EmployeeStatus.active, index=True)
+    status: EmployeeStatus = Field(
+        default=EmployeeStatus.active,
+        sa_column=enum_column(EmployeeStatus, nullable=False, index=True),
+    )
 
     salary_records: List["SalaryRecord"] = Relationship(back_populates="employee")
