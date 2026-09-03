@@ -106,3 +106,42 @@ outright), not just adjust a UI default — consistent with how the
 gender-suppression rule and the future-dated-salary exclusion were
 already implemented in the query/service layer per CLAUDE.md's testing
 philosophy, rather than left to the frontend to hide.
+
+---
+
+## Phase 7 — analytics dashboard visual design
+
+**Ask:** the dashboard was functionally correct but visually generic
+(default x-charts colours, a flat wall of identical full-width bar cards).
+Wanted it to feel like a considered financial / people-ops tool, and asked
+for a written design plan *reviewed against genericness* before any code —
+"would this same plan come out of any 'make a dashboard' prompt?"
+
+**AI-produced plan, then challenged:**
+
+- *Palette.* First proposed teal + gold. Ran every candidate pair through
+  the dataviz skill's `validate_palette.js` rather than eyeballing —
+  teal failed the chroma floor at mid-lightness in ~6 attempts. Settled on
+  bond-indigo `#3A4E9C` + brass `#BE8636` (both modes clear CVD ΔE ≥ 18,
+  contrast ≥ 3:1). Kept the reasoning that's *specific* to comp data: gold
+  tied to the median series + headline figure (currency), red reserved for
+  a payroll drop only, explicitly not finance-green.
+- *Genericness pass changed three things:* dropped a donut for gender ratio
+  (reflex choice) → single-hue sorted bars with share labels; dropped
+  "rounded cards + soft shadows" → hairline borders, no elevation; and
+  reframed "important numbers on top" into a *named Pay Equity section* +
+  a payroll headline with a QoQ burn delta, which is the figure a
+  people-ops lead is actually accountable for.
+- *Country chart sort:* user suggested value-sort over alphabetical; AI
+  extended it to sort by **median** specifically (robust to a few large
+  salaries) and made the data table follow the same order.
+
+**Accepted as-is:** the four-tier layout, the non-zero y-axis on the payroll
+trend line (a fill-to-zero area had flattened an 8% move), the computed
+one-line insights in card subtitles, the hatch-swatch suppressed state.
+
+**Corrected during build:** x-charts v9 moved `barLabel` onto the series
+object and `categoryGapRatio`/`barGapRatio` onto the band-axis config (not
+the chart) — both caught by typecheck, not docs. `titleTypographyProps` on
+CardHeader is gone in v9 (leaked to the DOM as an attribute at runtime, no
+type error) — switched to `slotProps`.

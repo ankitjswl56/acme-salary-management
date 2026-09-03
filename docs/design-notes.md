@@ -290,3 +290,79 @@ verified. Porting them would be pure churn against a fixed assessment
 deadline with no functional gain. The mixed-styling seam is a conscious,
 time-boxed trade — noted here so it's not mistaken for an oversight. If this
 were a real product the rest would follow in a fast-follow pass.
+
+## Analytics dashboard — visual design
+
+The 8 views are not 8 identical stacked cards. The design is deliberately
+tiered and specific to this being a **global HR compensation tool**, not a
+generic dashboard.
+
+**Palette — bond-indigo + brass-gold, not the chart-library default.**
+`#3A4E9C` (indigo) for the primary series and single-series bars, `#BE8636`
+(brass) for the "median" comparison series and the one accent rule under the
+headline figure. Dark mode lightens the indigo to `#7C8EDC`; gold holds.
+Rationale: a "statement / ledger" pairing reads as authoritative for money
+data, and gold *for the median series and the headline underline* ties the
+one non-neutral accent to currency. Deliberately avoided: the x-charts
+blue+orange default (reads as a demo), finance-green (P&L / stock-ticker
+connotation, wrong for salary), and alarm-red as anything but the reserved
+state (`#B23B3B`, used only for a quarter-over-quarter payroll *drop*).
+Every series hex was run through the dataviz skill's palette validator —
+CVD ΔE ≥ 18 and contrast ≥ 3:1 in both light and dark. (An earlier teal
+candidate was dropped: it kept failing the chroma floor at mid-lightness.)
+
+**Depth without elevation.** Cards are a 1px hairline border on a near-white
+surface, `border-radius: 8`, and **no drop shadow anywhere** (MuiCard is
+themed to force `boxShadow: none`). Separation comes from the border and the
+page/card value difference, not a soft-shadow "floating card" look.
+
+**Typography.** System sans throughout (no webfont — internal tool, keeps it
+fast). Every salary/payroll figure uses `tabular-nums`. The one bold moment
+is the **total-payroll headline figure** — `clamp(2.25rem, 4vw, 2.9rem)`,
+tabular, with a 44px brass rule under it. Ledger-style captions (uppercase,
+0.06em tracking, muted) sit above each stat-tile figure.
+
+**Layout — ordered as a narrative, not 8 peer cards.**
+1. *Headline band* (framed by a 2px top rule / 1px bottom rule, borderless
+   tiles): total annual payroll (dominant), active headcount, payroll
+   run-rate with a QoQ delta + inline sparkline. All three are derived from
+   existing endpoints — no backend change.
+2. *Where the spend goes*, full width: **total payroll by country** (the
+   headline figure broken down — sum of pay = headcount × salary), then
+   **payroll cost trend** (line, **non-zero y-axis** so the growth slope is
+   legible — a fill-to-zero area flattened an 8% move into a straight line).
+3. *How individuals are paid*, 2-col grid: **pay by country (per employee)**
+   and **pay by department (per employee)** — average/median of one person's
+   salary — then the org-wide **salary distribution** full width.
+4. *Pay equity*, its own named and rule-underlined section: gender
+   representation (a headcount — always shown) and average salary by gender
+   (min-group-size gated). Grouping these two under one heading is a
+   values-driven layout choice — the "is our pay fair" question gets a
+   named home, not scattering among detail cards.
+5. *Audit*: recent salary changes feed, height-capped with a sticky header.
+
+**"Total payroll by country" vs "Pay by country" were nearly indistinguishable
+in the first cut** (both horizontal bars, by country, sorted descending,
+near-homonym titles). Fixed by: renaming to *"Total payroll by country"* vs
+*"Pay by country (per employee)"*; subtitles that state the contrast
+explicitly ("…not per-person salary" / "…not total cost"); placing them in
+different tiers (spend vs pay); and their axes reading in different units
+($M vs $k). They are genuinely different questions — CLAUDE.md views #3 and
+#1 — so both stay.
+
+**Charts state their finding.** Bars are sorted by value, not
+alphabetically — salary-by-country/department by **median descending**
+(median, not mean: a few large salaries skew the mean, and the typical
+employee is the HR-analyst's lens). Cards carry a one-line computed insight
+in the subtitle where one is meaningful ("The top 3 countries account for
+69% of total payroll", "+27.4% over 8 quarters").
+
+**Suppressed pay-equity figures** render as a labelled state — a 45° hatch
+swatch plus literal text ("Withheld, fewer than N in group"), never a zero
+bar, never dropped silently, never colour/pattern alone.
+
+**Accessibility.** Every chart ships a toggleable data table (with a
+visually-hidden `<caption>` and `<th scope>`); focus rings are visible on
+all filters and toggles; the QoQ delta pairs an arrow glyph + sign with the
+colour; contrast is AA (ink ~13:1, muted ~5.2:1, series ≥ 3:1). Verified in
+light and dark at desktop and 430px.

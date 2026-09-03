@@ -1,5 +1,9 @@
+import { useMemo } from 'react'
+import { ThemeProvider } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
+import { buildTheme } from './theme'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AnalyticsPage } from './pages/AnalyticsPage'
@@ -40,10 +44,15 @@ function AppRoutes() {
 }
 
 function App() {
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)')
+  const theme = useMemo(() => buildTheme(prefersDark ? 'dark' : 'light'), [prefersDark])
+
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ThemeProvider theme={theme}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 
