@@ -1,11 +1,13 @@
 from datetime import date
 
 from app.models import ChangeType, Employee, EmployeeStatus, Gender, SalaryRecord
+from app.services import analytics as analytics_service
 from app.services.analytics import (
     _quarter_end_dates,
     avg_median_salary_by_country,
     avg_median_salary_by_department,
     avg_salary_by_gender,
+    dashboard_summary,
     gender_ratio,
     get_current_salary_snapshots,
     headcount_and_payroll_by_country,
@@ -382,3 +384,50 @@ def test_snapshot_views_accept_a_shared_precomputed_list(session):
     assert avg_salary_by_gender(session, department="Sales", snapshots=shared) == avg_salary_by_gender(
         session, department="Sales", as_of=TODAY
     )
+
+
+def _seed_mixed_dataset(session):
+    for email, country, dept, gender, status in [
+        ("a@acme.test", "US", "Engineering", Gender.female, EmployeeStatus.active),
+        ("b@acme.test", "US", "Engineering", Gender.male, EmployeeStatus.active),
+        ("c@acme.test", "UK", "Sales", Gender.female, EmployeeStatus.active),
+        ("d@acme.test", "UK", "Sales", Gender.male, EmployeeStatus.inactive),
+    ]:
+        employee = _make_employee(
+            session, email=email, country=country, department=dept, gender=gender, status=status
+        )
+        _add_record(session, employee, 95000, date(2024, 1, 1), ChangeType.hire)
+        if email == "a@acme.test":
+            _add_record(session, employee, 110000, date(2025, 6, 1), ChangeType.raise_)
+
+
+def test_dashboard_summary_matches_the_individual_views(session):
+    _seed_mixed_dataset(session)
+
+    d = dashboard_summary(session, as_of=TODAY)
+
+    assert d["as_of"] == TODAY
+    assert d["salary_by_country"] == avg_median_salary_by_country(session, as_of=TODAY)
+    assert d["salary_by_department"] == avg_median_salary_by_department(session, as_of=TODAY)
+    assert d["headcount_payroll_by_country"] == headcount_and_payroll_by_country(session, as_of=TODAY)
+    assert d["salary_distribution"] == salary_distribution(session, as_of=TODAY)
+    assert d["salary_by_gender"] == avg_salary_by_gender(session, as_of=TODAY)
+    assert d["gender_ratio"] == gender_ratio(session)
+    assert d["recent_changes"] == recent_changes_feed(session, months=3, as_of=TODAY)
+    assert d["payroll_trend"] == payroll_trend_by_quarter(session, quarters=8, as_of=TODAY)
+
+
+def test_dashboard_summary_computes_snapshots_once(session, monkeypatch):
+    _seed_mixed_dataset(session)
+
+    calls = []
+    real = analytics_service.get_current_salary_snapshots
+    monkeypatch.setattr(
+        analytics_service,
+        "get_current_salary_snapshots",
+        lambda *a, **k: calls.append(1) or real(*a, **k),
+    )
+
+    dashboard_summary(session, as_of=TODAY)
+
+    assert len(calls) == 1

@@ -377,3 +377,39 @@ def payroll_trend_by_quarter(session: Session, quarters: int = 8, as_of: date | 
             }
         )
     return results
+
+
+def dashboard_summary(session: Session, as_of: date | None = None) -> dict:
+    """Everything the analytics dashboard needs, computing the current-salary
+    snapshot list exactly once and threading it into every current-state view.
+
+    The three views the frontend exposes filters for (gender ratio, avg
+    salary by gender, recent changes) are bundled here with their default
+    parameters — identical to what each card fetches on first paint. When a
+    filter moves off-default the frontend re-hits that view's own endpoint.
+    """
+    as_of = as_of or date.today()
+    snapshots = get_current_salary_snapshots(session, as_of)  # the one window query
+
+    return {
+        "as_of": as_of,
+        "salary_by_country": avg_median_salary_by_country(session, as_of, snapshots=snapshots),
+        "salary_by_department": avg_median_salary_by_department(session, as_of, snapshots=snapshots),
+        "headcount_payroll_by_country": headcount_and_payroll_by_country(
+            session, as_of, snapshots=snapshots
+        ),
+        "salary_distribution": salary_distribution(session, as_of, snapshots=snapshots),
+        "salary_by_gender": avg_salary_by_gender(
+            session,
+            department=None,
+            role=None,
+            as_of=as_of,
+            min_group_size=DEFAULT_MIN_GROUP_SIZE,
+            snapshots=snapshots,
+        ),
+        "gender_ratio": gender_ratio(session, department=None, active_only=True),
+        "recent_changes": recent_changes_feed(
+            session, months=3, change_type=None, as_of=as_of, limit=50
+        ),
+        "payroll_trend": payroll_trend_by_quarter(session, quarters=8, as_of=as_of),
+    }
