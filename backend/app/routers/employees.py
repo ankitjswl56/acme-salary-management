@@ -7,6 +7,7 @@ from sqlmodel import Session
 from app.db import get_session
 from app.dependencies import require_role
 from app.models.enums import EmployeeStatus, UserRole
+from app.schemas.bulk import BulkRaiseRequest, BulkRaiseResponse
 from app.schemas.employee import (
     CurrentSalaryRead,
     EmployeeCreate,
@@ -17,6 +18,7 @@ from app.schemas.employee import (
     EmployeeUpdate,
 )
 from app.services import employee as employee_service
+from app.services.bulk import apply_bulk_raise
 from app.services.salary import get_current_salary_record
 
 router = APIRouter(
@@ -66,6 +68,30 @@ def get_filter_options(session: Session = Depends(get_session)):
     path param."""
     countries, departments = employee_service.get_distinct_countries_and_departments(session)
     return EmployeeFilterOptions(countries=countries, departments=departments)
+
+
+@router.post("/bulk-raise", response_model=BulkRaiseResponse)
+def bulk_raise(data: BulkRaiseRequest, session: Session = Depends(get_session)):
+    """Applies a uniform % raise/COLA to every employee matching the given
+    filters - registered before /{employee_id} so "bulk-raise" isn't
+    swallowed as an employee_id path param."""
+    try:
+        result = apply_bulk_raise(
+            session,
+            percentage=data.percentage,
+            effective_date=data.effective_date,
+            change_type=data.change_type,
+            country=data.country,
+            department=data.department,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return BulkRaiseResponse(
+        matched_count=result.matched_count,
+        applied_count=result.applied_count,
+        skipped_no_current_salary=result.skipped_no_current_salary,
+        skipped_effective_date_before_hire=result.skipped_effective_date_before_hire,
+    )
 
 
 @router.get("/{employee_id}", response_model=EmployeeDetail)

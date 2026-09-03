@@ -81,9 +81,16 @@ export function EmployeesPage() {
     <div>
       <div className="page-header">
         <h1>Employees</h1>
-        <Link to="/employees/new">
-          <button type="button">New employee</button>
-        </Link>
+        <div className="page-header-actions">
+          <Link to="/employees/bulk-raise">
+            <button type="button" className="secondary">
+              Bulk raise
+            </button>
+          </Link>
+          <Link to="/employees/new">
+            <button type="button">New employee</button>
+          </Link>
+        </div>
       </div>
 
       <div className="filters">

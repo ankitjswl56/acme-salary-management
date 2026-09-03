@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AnalyticsPage } from './pages/AnalyticsPage'
+import { BulkRaisePage } from './pages/BulkRaisePage'
 import { EmployeeCreatePage } from './pages/EmployeeCreatePage'
 import { EmployeeDetailPage } from './pages/EmployeeDetailPage'
 import { EmployeeEditPage } from './pages/EmployeeEditPage'
@@ -23,6 +24,7 @@ function AppRoutes() {
           <Route element={<ProtectedRoute allowedRoles={['admin', 'hr_manager']} />}>
             <Route path="/employees" element={<EmployeesPage />} />
             <Route path="/employees/new" element={<EmployeeCreatePage />} />
+            <Route path="/employees/bulk-raise" element={<BulkRaisePage />} />
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/employees/:id/edit" element={<EmployeeEditPage />} />
           </Route>

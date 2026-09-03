@@ -1,5 +1,52 @@
 # Salary Management Software — Design Notes
 
+## Bulk raise: local currency, restricted change_type, partial success
+
+`apply_bulk_raise()` (app/services/bulk.py) applies a % change to every
+active employee matching an optional country/department filter, in one HR
+action. A few decisions worth recording:
+
+- **Always active-only, not a status filter.** There's no `status`
+  parameter at all - not defaulted to active and overridable, genuinely
+  not offered as a choice. A raise for someone who's already left the
+  company (`status = inactive` means no longer employed) isn't a real
+  scenario, so it isn't presented as one; a stray `"status"` key in the
+  request body is silently ignored by pydantic rather than accepted.
+  Flagged by the user reviewing the form: "why would HR want to raise
+  someone who's not active?"
+- **Applied to local currency, not USD.** The window-function query
+  fetches each employee's current `amount`/`currency` (not
+  `amount_usd_snapshot`), so a GBP earner's raise multiplies their GBP
+  figure — reusing `normalize_to_usd()` afterward for the new USD
+  snapshot, same as every other SalaryRecord write. Applying the
+  percentage to a USD-converted figure and converting back would drift
+  from what the employee's contract is actually denominated in.
+- **Restricted to change_type raise/cola.** Promotion is inherently
+  individual (paired with a specific new role - see the new_role note
+  below); correction/hire are one-off single-employee fixes. Neither
+  makes sense applied identically across a whole department.
+- **Percentage must be strictly positive - no bulk pay cuts.** Initially
+  allowed any percentage > -100 (framed as "supports a pay cut too"), but
+  that's a real UX problem: a negative percentage inserts a SalaryRecord
+  with change_type "raise" whose amount is actually *lower* than the
+  prior one, reading as self-contradictory in the salary history table.
+  Flagged by the user reviewing the form. `docs/requirements.md` only
+  ever asks for "apply a % raise" - a bulk pay-cut feature, if ever
+  needed, deserves its own change_type concept (`ChangeType` is locked
+  and has no "cut" value), not a sign flip on this endpoint.
+- **Partial success, not all-or-nothing.** An employee with no current
+  salary record yet, or one whose (possibly since-corrected) hire_date
+  now postdates the raise's effective_date, is skipped rather than
+  aborting the entire batch - the response reports
+  matched/applied/skipped_* counts so HR can see exactly what happened,
+  rather than a raise for 998 of 1000 people failing outright because of
+  2 edge cases.
+- **Confirmed client-side before submitting**, since it's the app's first
+  action that writes to many employees in one request - a plain
+  `window.confirm()` naming the scope (no separate dry-run/preview
+  endpoint; the confirm text states the filters, not an exact matched
+  count).
+
 ## "hire" can only be an employee's first SalaryRecord
 
 Flagged by the user: the add-salary-record form offered "Hire" as a

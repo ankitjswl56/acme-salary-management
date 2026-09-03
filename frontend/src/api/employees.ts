@@ -1,4 +1,6 @@
 import type {
+  BulkRaiseRequest,
+  BulkRaiseResponse,
   EmployeeCreate,
   EmployeeDetail,
   EmployeeFilterOptions,
@@ -50,4 +52,8 @@ export function createSalaryRecord(employeeId: number, data: SalaryRecordCreate)
     method: 'POST',
     body: data,
   })
+}
+
+export function applyBulkRaise(data: BulkRaiseRequest) {
+  return apiFetch<BulkRaiseResponse>('/employees/bulk-raise', { method: 'POST', body: data })
 }

@@ -199,6 +199,14 @@ th {
 .page-header h1 {
   margin: 0;
 }
+.page-header-actions {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.result-card {
+  margin-top: 1.5rem;
+}
 
 /* Employees list */
 .filters {

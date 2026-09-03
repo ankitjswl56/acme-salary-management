@@ -102,3 +102,20 @@ export interface SalaryRecordRead {
   change_type: ChangeType
   created_at: string
 }
+
+export interface BulkRaiseRequest {
+  percentage: number
+  effective_date: string
+  change_type: ChangeType
+  country?: string
+  department?: string
+  // No status field: always scoped to active employees, not a selectable
+  // filter - see app/schemas/bulk.py.
+}
+
+export interface BulkRaiseResponse {
+  matched_count: number
+  applied_count: number
+  skipped_no_current_salary: number
+  skipped_effective_date_before_hire: number
+}
