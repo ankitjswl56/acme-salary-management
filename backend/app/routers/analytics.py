@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.db import get_session
+from app.dependencies import get_current_user
 from app.models.enums import ChangeType
 from app.schemas.analytics import (
     CountryPayroll,
@@ -17,7 +18,10 @@ from app.schemas.analytics import (
 )
 from app.services import analytics as analytics_service
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+# All three roles (admin, hr_manager, executive_viewer) can view analytics -
+# it's the aggregate-only view executive_viewer is scoped to. So gating here
+# just requires "logged in as anyone", not a specific role.
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/salary-by-country", response_model=list[CountrySalaryStats])

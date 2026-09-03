@@ -2,11 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from app.db import get_session
+from app.dependencies import require_role
+from app.models.enums import UserRole
 from app.schemas.salary_record import SalaryRecordCreate, SalaryRecordRead
 from app.services import employee as employee_service
 from app.services.salary import create_salary_record, get_salary_history
 
-router = APIRouter(prefix="/employees/{employee_id}/salary-records", tags=["salary-records"])
+router = APIRouter(
+    prefix="/employees/{employee_id}/salary-records",
+    tags=["salary-records"],
+    dependencies=[Depends(require_role(UserRole.admin, UserRole.hr_manager))],
+)
 
 
 @router.post("", response_model=SalaryRecordRead, status_code=201)

@@ -5,7 +5,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from app.db import get_session
-from app.models.enums import EmployeeStatus
+from app.dependencies import require_role
+from app.models.enums import EmployeeStatus, UserRole
 from app.schemas.employee import (
     CurrentSalaryRead,
     EmployeeCreate,
@@ -17,7 +18,11 @@ from app.schemas.employee import (
 from app.services import employee as employee_service
 from app.services.salary import get_current_salary_record
 
-router = APIRouter(prefix="/employees", tags=["employees"])
+router = APIRouter(
+    prefix="/employees",
+    tags=["employees"],
+    dependencies=[Depends(require_role(UserRole.admin, UserRole.hr_manager))],
+)
 
 
 @router.post("", response_model=EmployeeRead, status_code=201)

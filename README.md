@@ -73,6 +73,21 @@ See [`.env.example`](.env.example) for the full list. Key ones:
 
 `.env` is gitignored — never commit real secrets.
 
+## Seed script
+
+Populates the database with 10,000 correlated employees, realistic salary
+history for ~15-20% of them, and the 3 demo users below. Safe to re-run —
+it clears and repopulates Employee/SalaryRecord/User each time (same result,
+since the random seed is fixed).
+
+```
+cd backend
+source .venv/bin/activate
+python -m app.seed
+```
+
+In Docker Compose: `docker compose exec backend python -m app.seed`.
+
 ## Tests
 
 Backend:
@@ -83,8 +98,19 @@ source .venv/bin/activate
 pytest
 ```
 
-<!-- Seed script and frontend test commands will be added in later phases. -->
+<!-- Frontend test commands will be added once the frontend has tests. -->
 
 ## Demo login credentials
 
-<!-- Filled in once auth/RBAC (Phase 5) and the seed script (Phase 2) are built. -->
+`POST /auth/login` with `{"email": ..., "password": ...}`, all sharing the
+same password:
+
+| Role | Email | Password |
+|---|---|---|
+| admin | `admin@acme-corp.example` | `Password123!@#` |
+| hr_manager | `hr.manager@acme-corp.example` | `Password123!@#` |
+| executive_viewer | `exec.viewer@acme-corp.example` | `Password123!@#` |
+
+`admin` and `hr_manager` have full read/write on employee & salary data;
+`executive_viewer` can only reach the `/analytics/*` endpoints (read-only,
+aggregate data — individual employee records are blocked).
