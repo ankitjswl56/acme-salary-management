@@ -145,3 +145,87 @@ def headcount_and_payroll_by_country(session: Session, as_of: date | None = None
         }
         for country, group in sorted(groups.items())
     ]
+
+
+SALARY_DISTRIBUTION_BANDS: list[tuple[float, float, str]] = [
+    (0, 30_000, "<$30k"),
+    (30_000, 50_000, "$30k-$50k"),
+    (50_000, 75_000, "$50k-$75k"),
+    (75_000, 100_000, "$75k-$100k"),
+    (100_000, 125_000, "$100k-$125k"),
+    (125_000, 150_000, "$125k-$150k"),
+    (150_000, 200_000, "$150k-$200k"),
+    (200_000, float("inf"), "$200k+"),
+]
+
+
+def salary_distribution(session: Session, as_of: date | None = None) -> list[dict]:
+    """Org-wide histogram of current USD salary, in fixed bands. Every band
+    is included even with zero headcount, so a chart doesn't have gaps."""
+    snapshots = get_current_salary_snapshots(session, as_of)
+
+    counts = {label: 0 for _, _, label in SALARY_DISTRIBUTION_BANDS}
+    for snapshot in snapshots:
+        for lower, upper, label in SALARY_DISTRIBUTION_BANDS:
+            if lower <= snapshot.amount_usd < upper:
+                counts[label] += 1
+                break
+
+    return [{"band": label, "headcount": counts[label]} for _, _, label in SALARY_DISTRIBUTION_BANDS]
+
+
+def gender_ratio(session: Session, department: str | None = None, active_only: bool = True) -> list[dict]:
+    """Headcount by gender — always safe to show at any group size, since
+    it's a count, not a figure derived from individuals' pay."""
+    statement = select(Employee.gender, func.count()).group_by(Employee.gender)
+    if active_only:
+        statement = statement.where(Employee.status == EmployeeStatus.active)
+    if department:
+        statement = statement.where(Employee.department == department)
+
+    rows = session.execute(statement).all()
+    return [
+        {"gender": gender.value if gender else "unspecified", "headcount": headcount}
+        for gender, headcount in rows
+    ]
+
+
+DEFAULT_MIN_GROUP_SIZE = 5
+
+
+def avg_salary_by_gender(
+    session: Session,
+    department: str | None = None,
+    role: str | None = None,
+    as_of: date | None = None,
+    min_group_size: int = DEFAULT_MIN_GROUP_SIZE,
+) -> list[dict]:
+    """Average current USD salary by gender, within an optional department/
+    role scope. A group's average is suppressed (avg_salary_usd = None) when
+    its headcount is below min_group_size, since — unlike headcount — an
+    average derived from a handful of individuals' pay risks indirectly
+    exposing one person's salary. Enforced here in the query layer, not left
+    to the frontend to hide."""
+    snapshots = get_current_salary_snapshots(session, as_of)
+    if department:
+        snapshots = [s for s in snapshots if s.department == department]
+    if role:
+        snapshots = [s for s in snapshots if s.role == role]
+
+    groups: dict[str, list[CurrentSalarySnapshot]] = {}
+    for snapshot in snapshots:
+        groups.setdefault(snapshot.gender or "unspecified", []).append(snapshot)
+
+    results = []
+    for gender, group in sorted(groups.items()):
+        headcount = len(group)
+        suppressed = headcount < min_group_size
+        results.append(
+            {
+                "gender": gender,
+                "headcount": headcount,
+                "avg_salary_usd": None if suppressed else round(statistics.mean(s.amount_usd for s in group), 2),
+                "suppressed": suppressed,
+            }
+        )
+    return results

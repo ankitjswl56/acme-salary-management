@@ -4,8 +4,11 @@ from app.models import ChangeType, Employee, EmployeeStatus, Gender, SalaryRecor
 from app.services.analytics import (
     avg_median_salary_by_country,
     avg_median_salary_by_department,
+    avg_salary_by_gender,
+    gender_ratio,
     get_current_salary_snapshots,
     headcount_and_payroll_by_country,
+    salary_distribution,
 )
 
 TODAY = date(2026, 9, 2)
@@ -130,3 +133,90 @@ def test_headcount_and_payroll_by_country_sums_current_salaries(session):
     result = headcount_and_payroll_by_country(session, as_of=TODAY)
 
     assert result == [{"country": "UK", "headcount": 2, "total_payroll_usd": 120000.0}]
+
+
+def test_salary_distribution_buckets_by_fixed_bands_including_empty_ones(session):
+    for email, amount in [("a@acme.test", 20000), ("b@acme.test", 60000), ("c@acme.test", 65000)]:
+        employee = _make_employee(session, email=email)
+        _add_record(session, employee, amount, date(2020, 1, 1))
+
+    result = salary_distribution(session, as_of=TODAY)
+
+    by_band = {row["band"]: row["headcount"] for row in result}
+    assert by_band["<$30k"] == 1
+    assert by_band["$50k-$75k"] == 2
+    assert by_band["$75k-$100k"] == 0  # empty band still present
+    assert sum(by_band.values()) == 3
+
+
+def test_gender_ratio_counts_active_employees_by_gender(session):
+    _make_employee(session, email="a@acme.test", gender=Gender.female)
+    _make_employee(session, email="b@acme.test", gender=Gender.female)
+    _make_employee(session, email="c@acme.test", gender=Gender.male)
+    _make_employee(session, email="d@acme.test", gender=None)
+    _make_employee(session, email="e@acme.test", gender=Gender.male, status=EmployeeStatus.inactive)
+
+    result = gender_ratio(session)
+
+    by_gender = {row["gender"]: row["headcount"] for row in result}
+    assert by_gender["female"] == 2
+    assert by_gender["male"] == 1  # inactive employee excluded by default
+    assert by_gender["unspecified"] == 1
+
+
+def test_gender_ratio_filters_by_department(session):
+    _make_employee(session, email="a@acme.test", department="Engineering", gender=Gender.female)
+    _make_employee(session, email="b@acme.test", department="Sales", gender=Gender.female)
+
+    result = gender_ratio(session, department="Engineering")
+
+    assert result == [{"gender": "female", "headcount": 1}]
+
+
+def test_avg_salary_by_gender_suppressed_below_min_group_size(session):
+    for i in range(4):  # one below the default threshold of 5
+        employee = _make_employee(session, email=f"f{i}@acme.test", gender=Gender.female)
+        _add_record(session, employee, 100000, date(2020, 1, 1))
+
+    result = avg_salary_by_gender(session, as_of=TODAY)
+
+    female_row = next(row for row in result if row["gender"] == "female")
+    assert female_row["headcount"] == 4
+    assert female_row["suppressed"] is True
+    assert female_row["avg_salary_usd"] is None
+
+
+def test_avg_salary_by_gender_shown_at_exactly_min_group_size(session):
+    for i in range(5):  # exactly at the default threshold
+        employee = _make_employee(session, email=f"f{i}@acme.test", gender=Gender.female)
+        _add_record(session, employee, 100000, date(2020, 1, 1))
+
+    result = avg_salary_by_gender(session, as_of=TODAY)
+
+    female_row = next(row for row in result if row["gender"] == "female")
+    assert female_row["headcount"] == 5
+    assert female_row["suppressed"] is False
+    assert female_row["avg_salary_usd"] == 100000.0
+
+
+def test_avg_salary_by_gender_respects_custom_min_group_size(session):
+    for i in range(5):
+        employee = _make_employee(session, email=f"f{i}@acme.test", gender=Gender.female)
+        _add_record(session, employee, 100000, date(2020, 1, 1))
+
+    result = avg_salary_by_gender(session, as_of=TODAY, min_group_size=10)
+
+    female_row = next(row for row in result if row["gender"] == "female")
+    assert female_row["suppressed"] is True
+    assert female_row["avg_salary_usd"] is None
+
+
+def test_avg_salary_by_gender_filters_by_department_and_role(session):
+    eng = _make_employee(session, email="eng@acme.test", department="Engineering", gender=Gender.female)
+    sales = _make_employee(session, email="sales@acme.test", department="Sales", gender=Gender.female)
+    _add_record(session, eng, 120000, date(2020, 1, 1))
+    _add_record(session, sales, 60000, date(2020, 1, 1))
+
+    result = avg_salary_by_gender(session, department="Engineering", as_of=TODAY, min_group_size=1)
+
+    assert result == [{"gender": "female", "headcount": 1, "avg_salary_usd": 120000.0, "suppressed": False}]
