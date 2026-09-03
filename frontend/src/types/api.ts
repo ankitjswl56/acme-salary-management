@@ -131,3 +131,71 @@ export interface CsvImportResponse {
   errors: CsvImportRowError[]
   salary_warnings: CsvImportRowError[]
 }
+
+// --- Analytics: the 8 fixed dashboard views ---
+// Mirrors backend/app/schemas/analytics.py. All 8 are GET /analytics/*,
+// reachable by any authenticated role (including executive_viewer - this is
+// the only part of the app that role can see).
+
+export interface CountrySalaryStats {
+  country: string
+  headcount: number
+  avg_salary_usd: number
+  median_salary_usd: number
+}
+
+export interface DepartmentSalaryStats {
+  department: string
+  headcount: number
+  avg_salary_usd: number
+  median_salary_usd: number
+}
+
+export interface CountryPayroll {
+  country: string
+  headcount: number
+  total_payroll_usd: number
+}
+
+export interface SalaryDistributionBand {
+  band: string
+  headcount: number
+}
+
+// gender comes across as a Gender value or the literal "unspecified" (rows
+// with no gender recorded) - the backend groups nulls under that label.
+export type GenderLabel = Gender | 'unspecified'
+
+export interface GenderHeadcount {
+  gender: GenderLabel
+  headcount: number
+}
+
+// avg_salary_usd is null (and suppressed true) whenever headcount is below
+// min_group_size (default 5) - the min-group-size privacy rule, enforced in
+// the backend query layer. Render this as a real "insufficient data" state,
+// never coerce the null to 0.
+export interface GenderSalaryStats {
+  gender: GenderLabel
+  headcount: number
+  avg_salary_usd: number | null
+  suppressed: boolean
+}
+
+export interface SalaryChangeFeedItem {
+  employee_id: number
+  employee_name: string
+  department: string
+  country: string
+  change_type: ChangeType
+  effective_date: string
+  amount: number
+  currency: string
+  amount_usd: number
+}
+
+export interface QuarterlyPayroll {
+  quarter: string
+  headcount: number
+  total_payroll_usd: number
+}
