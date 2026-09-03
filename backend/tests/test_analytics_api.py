@@ -128,3 +128,28 @@ def test_payroll_trend(client, session):
     body = response.json()
     assert len(body) == 8
     assert body[-1]["total_payroll_usd"] == 114300.0
+
+
+def test_dashboard_returns_all_sections(client, session):
+    _seed_one_employee(session)
+
+    response = client.get("/analytics/dashboard")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {
+        "as_of",
+        "salary_by_country",
+        "salary_by_department",
+        "headcount_payroll_by_country",
+        "salary_distribution",
+        "salary_by_gender",
+        "gender_ratio",
+        "recent_changes",
+        "payroll_trend",
+    }
+    assert body["salary_by_country"] == [
+        {"country": "UK", "headcount": 1, "avg_salary_usd": 114300.0, "median_salary_usd": 114300.0}
+    ]
+    assert body["gender_ratio"] == [{"gender": "female", "headcount": 1}]
+    assert len(body["payroll_trend"]) == 8

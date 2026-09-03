@@ -59,3 +59,19 @@ class QuarterlyPayroll(SQLModel):
     quarter: str
     headcount: int
     total_payroll_usd: float
+
+
+class AnalyticsDashboard(SQLModel):
+    """Every view the dashboard renders on load, in one response. The three
+    filterable views carry their default-parameter result; changing a filter
+    on the frontend re-hits that view's own endpoint."""
+
+    as_of: date
+    salary_by_country: list[CountrySalaryStats]
+    salary_by_department: list[DepartmentSalaryStats]
+    headcount_payroll_by_country: list[CountryPayroll]
+    salary_distribution: list[SalaryDistributionBand]
+    salary_by_gender: list[GenderSalaryStats]
+    gender_ratio: list[GenderHeadcount]
+    recent_changes: list[SalaryChangeFeedItem]
+    payroll_trend: list[QuarterlyPayroll]

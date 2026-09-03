@@ -7,6 +7,7 @@ from app.db import get_session
 from app.dependencies import get_current_user
 from app.models.enums import ChangeType
 from app.schemas.analytics import (
+    AnalyticsDashboard,
     CountryPayroll,
     CountrySalaryStats,
     DepartmentSalaryStats,
@@ -22,6 +23,14 @@ from app.services import analytics as analytics_service
 # it's the aggregate-only view executive_viewer is scoped to. So gating here
 # just requires "logged in as anyone", not a specific role.
 router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(get_current_user)])
+
+
+@router.get("/dashboard", response_model=AnalyticsDashboard)
+def dashboard(session: Session = Depends(get_session)):
+    """One request for the whole dashboard. The 8 per-view endpoints below
+    stay for the frontend's filter-driven refetches and the stretch
+    NL-query feature."""
+    return AnalyticsDashboard(**analytics_service.dashboard_summary(session))
 
 
 @router.get("/salary-by-country", response_model=list[CountrySalaryStats])
