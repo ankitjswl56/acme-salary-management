@@ -79,7 +79,12 @@ export function EmployeesPage() {
 
   return (
     <div>
-      <h1>Employees</h1>
+      <div className="page-header">
+        <h1>Employees</h1>
+        <Link to="/employees/new">
+          <button type="button">New employee</button>
+        </Link>
+      </div>
 
       <div className="filters">
         <input

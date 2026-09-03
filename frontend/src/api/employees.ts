@@ -1,8 +1,11 @@
 import type {
+  EmployeeCreate,
   EmployeeDetail,
   EmployeeFilterOptions,
   EmployeeListResponse,
+  EmployeeRead,
   EmployeeStatus,
+  EmployeeUpdate,
   SalaryRecordRead,
 } from '../types/api'
 import { apiFetch } from './client'
@@ -31,4 +34,12 @@ export function getEmployee(id: number) {
 
 export function getSalaryHistory(id: number) {
   return apiFetch<SalaryRecordRead[]>(`/employees/${id}/salary-records`)
+}
+
+export function createEmployee(data: EmployeeCreate) {
+  return apiFetch<EmployeeRead>('/employees', { method: 'POST', body: data })
+}
+
+export function updateEmployee(id: number, data: EmployeeUpdate) {
+  return apiFetch<EmployeeRead>(`/employees/${id}`, { method: 'PATCH', body: data })
 }

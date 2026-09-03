@@ -18,6 +18,32 @@ export interface ApiFetchOptions {
   params?: Record<string, string | number | boolean | undefined | null>
 }
 
+// FastAPI's `detail` is a plain string for most errors (404, 409, our own
+// raised HTTPExceptions), but a list of {loc, msg, type} objects for
+// pydantic validation errors (422) - forms are the first place we're
+// likely to actually hit that shape, so handle both.
+function extractErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object' || !('detail' in data)) {
+    return fallback
+  }
+
+  const detail = (data as { detail: unknown }).detail
+  if (typeof detail === 'string') {
+    return detail
+  }
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) =>
+        item && typeof item === 'object' && 'msg' in item ? String((item as { msg: unknown }).msg) : null,
+      )
+      .filter((msg): msg is string => msg !== null)
+    if (messages.length > 0) {
+      return messages.join('; ')
+    }
+  }
+  return fallback
+}
+
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = 'GET', body, params } = options
   const url = new URL(`${API_URL}${path}`)
@@ -51,11 +77,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const data: unknown = text ? JSON.parse(text) : null
 
   if (!response.ok) {
-    const detail =
-      data && typeof data === 'object' && 'detail' in data
-        ? String((data as { detail: unknown }).detail)
-        : response.statusText
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, extractErrorMessage(data, response.statusText))
   }
 
   return data as T

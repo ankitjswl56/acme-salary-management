@@ -54,7 +54,14 @@ export function EmployeeDetailPage() {
       <p>
         <Link to="/employees">← Back to employees</Link>
       </p>
-      <h1>{employee.name}</h1>
+      <div className="page-header">
+        <h1>{employee.name}</h1>
+        <Link to={`/employees/${employee.id}/edit`}>
+          <button type="button" className="secondary">
+            Edit
+          </button>
+        </Link>
+      </div>
 
       <div className="card detail-grid">
         <span className="muted">Email</span>

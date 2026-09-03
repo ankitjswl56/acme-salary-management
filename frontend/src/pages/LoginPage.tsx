@@ -34,7 +34,7 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <form className="login-form card" onSubmit={handleSubmit}>
+      <form className="login-form card stacked-form" onSubmit={handleSubmit}>
         <h1>ACME Salary Management</h1>
         <label>
           Email
