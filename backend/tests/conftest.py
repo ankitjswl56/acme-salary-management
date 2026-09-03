@@ -18,7 +18,7 @@ def session():
 
 
 @pytest.fixture
-def client(session):
+def unauthenticated_client(session):
     """TestClient wired to the in-memory `session` fixture instead of the
     app's real file-based DB. Not entered as a `with` block, so FastAPI's
     startup lifespan (which calls init_db() against the real DB) never
@@ -30,3 +30,11 @@ def client(session):
     app.dependency_overrides[get_session] = override_get_session
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(unauthenticated_client):
+    """Same as unauthenticated_client — a placeholder until role gating
+    lands, at which point this becomes the pre-authenticated default so the
+    many existing CRUD/analytics tests don't all need to attach a token."""
+    return unauthenticated_client

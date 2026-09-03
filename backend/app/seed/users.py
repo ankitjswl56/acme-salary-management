@@ -2,9 +2,8 @@
 in as each and see the RBAC differences directly (login itself lands in
 Phase 5; this just seeds the accounts ahead of it)."""
 
-import bcrypt
-
 from app.models.enums import UserRole
+from app.services.auth import hash_password
 
 DEMO_PASSWORD = "Password123!@#"
 
@@ -15,12 +14,8 @@ DEMO_USERS = [
 ]
 
 
-def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
 def generate_demo_user_rows() -> list[dict]:
-    hashed_password = _hash_password(DEMO_PASSWORD)
+    hashed_password = hash_password(DEMO_PASSWORD)
     return [
         {
             "id": i,
