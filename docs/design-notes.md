@@ -239,3 +239,26 @@ list of dicts (`conn.execute(table.insert(), rows)`), which SQLAlchemy
 batches via `executemany`. This skips the ORM unit-of-work/identity-map
 overhead entirely — necessary at 10k+ rows per CLAUDE.md's explicit
 guidance to avoid one-row-at-a-time ORM adds.
+
+## Auto-seed on first startup (`seed_if_empty` in the app lifespan)
+
+The FastAPI lifespan handler calls `seed_if_empty()` right after `init_db()`.
+It checks whether the `Employee` table has any rows and, only if it's empty,
+runs the same `seed_core_data()` + `seed_demo_users()` the standalone script
+uses. If data already exists it returns immediately and touches nothing.
+
+Why: the reviewer should get a fully populated dashboard from a single
+`docker compose up`, with no "now run the seed script" step to discover in
+the README. The emptiness check makes this safe on *every* container
+restart — the seed itself clears-then-inserts, so without the guard a
+restart would pointlessly regenerate 10k rows (and reset any manual edits
+made while exploring). `python -m app.seed` is still the way to force a
+deliberate re-seed during development.
+
+Cost: first boot against an empty volume takes a few extra seconds while
+Faker generates the dataset before the API starts serving. That's a
+first-run-only cost and an acceptable trade for the zero-step setup.
+
+Testing note: `seed_if_empty(session=...)` takes an optional session so the
+"skip when not empty" path can be tested against the in-memory test DB
+without hitting the real file-backed engine (`backend/tests/test_seed.py`).

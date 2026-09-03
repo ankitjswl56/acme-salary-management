@@ -6,11 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import init_db
 from app.routers import analytics, auth, employees, health, reference, salary_records
+from app.seed.run import seed_if_empty
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # First boot against an empty volume gets a fully seeded dataset with no
+    # manual step; a restart against an already-seeded DB is a no-op.
+    seed_if_empty()
     yield
 
 

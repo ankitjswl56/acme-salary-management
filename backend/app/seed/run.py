@@ -1,5 +1,7 @@
 from datetime import date
 
+from sqlmodel import Session, select
+
 from app.db import engine, init_db
 from app.models import Employee, SalaryRecord, User
 from app.seed.generate import generate_employees, generate_salary_records
@@ -42,3 +44,31 @@ def seed_demo_users() -> int:
         conn.execute(User.__table__.insert(), user_rows)
 
     return len(user_rows)
+
+
+def seed_if_empty(session: Session | None = None) -> bool:
+    """Seed core data + demo users, but only when the Employee table is empty.
+
+    Called from the app lifespan on startup so a bare `docker compose up`
+    produces a fully seeded environment with no manual seed step. Because it
+    checks first and does nothing when data already exists, it's safe to run
+    on every container restart — it won't duplicate or reset an existing
+    dataset. Use the standalone `python -m app.seed` script to force a
+    re-seed during development.
+
+    Returns True if seeding ran, False if it was skipped.
+    """
+    own_session = session is None
+    if own_session:
+        init_db()
+        session = Session(engine)
+    try:
+        if session.exec(select(Employee.id).limit(1)).first() is not None:
+            return False
+    finally:
+        if own_session:
+            session.close()
+
+    seed_core_data()
+    seed_demo_users()
+    return True

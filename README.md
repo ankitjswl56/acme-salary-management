@@ -42,6 +42,13 @@ trade-off decisions made along the way.
 The frontend landing page calls the backend's `/health` endpoint on load and
 displays the result, to confirm the two services are wired together.
 
+**No manual seed step is needed.** On first startup against an empty
+database, the backend automatically seeds 10,000 correlated employees,
+salary history, and the 3 demo users below — so `docker compose up` alone
+gives you a fully populated dashboard. On later restarts it detects the
+existing data and skips, so nothing is duplicated or reset. See
+[Seed script](#seed-script) below only if you want to force a re-seed.
+
 The SQLite database file is written to a named Docker volume (`db-data`)
 mounted at `/data` in the backend container, so it persists across
 `docker compose down` / `up` cycles. Use `docker compose down -v` to reset it.
@@ -82,9 +89,10 @@ See [`.env.example`](.env.example) for the full list. Key ones:
 
 ## Seed script
 
-Populates the database with 10,000 correlated employees, realistic salary
-history for ~15-20% of them, and the 3 demo users below. Safe to re-run —
-it clears and repopulates Employee/SalaryRecord/User each time (same result,
+The database is seeded **automatically on first startup** (see above), so
+you normally never need to run this by hand. It's kept as a standalone
+script for forcing a deliberate re-seed during development — it clears and
+repopulates Employee/SalaryRecord/User each time (same result every run,
 since the random seed is fixed).
 
 ```
@@ -94,6 +102,9 @@ python -m app.seed
 ```
 
 In Docker Compose: `docker compose exec backend python -m app.seed`.
+
+Populates 10,000 correlated employees, realistic salary history for
+~15–20% of them, and the 3 demo users below.
 
 ## Tests
 
