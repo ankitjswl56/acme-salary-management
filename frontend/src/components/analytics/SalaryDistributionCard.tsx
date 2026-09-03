@@ -5,19 +5,25 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import { visuallyHidden } from '@mui/utils'
-import { getSalaryDistribution } from '../../api/analytics'
 import { formatCount, formatPercent1 } from '../../lib/format'
+import type { SalaryDistributionBand } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
-import { useAnalyticsQuery } from './useAnalyticsQuery'
 
 // View 4: org-wide histogram of current USD salary. Bands stay in their
 // natural low-to-high order - they're ordinal, not something to rank.
-export function SalaryDistributionCard() {
-  const { data, loading, error } = useAnalyticsQuery(getSalaryDistribution, 'salary-distribution')
+export function SalaryDistributionCard({
+  data,
+  loading = false,
+  error = '',
+}: {
+  data: SalaryDistributionBand[]
+  loading?: boolean
+  error?: string
+}) {
   const tokens = useChartTokens()
 
-  const rows = data ?? []
+  const rows = data
   const total = rows.reduce((sum, r) => sum + r.headcount, 0)
   const chartData = rows.map((r) => ({ band: r.band, headcount: r.headcount }))
 

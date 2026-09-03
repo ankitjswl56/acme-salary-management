@@ -10,10 +10,11 @@ import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import { getRecentChanges } from '../../api/analytics'
 import { changeTypeLabel, formatUsd } from '../../lib/format'
-import type { ChangeType } from '../../types/api'
+import type { ChangeType, SalaryChangeFeedItem } from '../../types/api'
 import { ChartCard } from './ChartCard'
 import { useAnalyticsQuery } from './useAnalyticsQuery'
 
+const DEFAULT_MONTHS = 3
 const MONTHS = [3, 6, 12]
 const CHANGE_TYPES: ChangeType[] = ['hire', 'raise', 'promotion', 'correction', 'cola']
 const ALL = '__all__'
@@ -21,21 +22,34 @@ const LIMIT = 50
 
 // View 7: raw feed of recent salary records - an ops/audit view, so it
 // follows the actual records rather than the "current salary" resolution.
-export function RecentChangesCard() {
-  const [months, setMonths] = useState(3)
+//
+// `initialData` is the last-3-months feed from the one dashboard request;
+// changing the window or type fires this card's own fetch.
+export function RecentChangesCard({
+  initialData,
+  loading: pageLoading = false,
+}: {
+  initialData: SalaryChangeFeedItem[]
+  loading?: boolean
+}) {
+  const [months, setMonths] = useState(DEFAULT_MONTHS)
   const [changeType, setChangeType] = useState<string>(ALL)
+  const isDefault = months === DEFAULT_MONTHS && changeType === ALL
 
-  const { data, loading, error } = useAnalyticsQuery(
+  const { data, loading: queryLoading, error } = useAnalyticsQuery(
     () =>
-      getRecentChanges({
-        months,
-        changeType: changeType === ALL ? undefined : (changeType as ChangeType),
-        limit: LIMIT,
-      }),
+      isDefault
+        ? Promise.resolve(initialData)
+        : getRecentChanges({
+            months,
+            changeType: changeType === ALL ? undefined : (changeType as ChangeType),
+            limit: LIMIT,
+          }),
     `recent:${months}:${changeType}`,
   )
 
-  const rows = data ?? []
+  const rows = isDefault ? initialData : (data ?? [])
+  const loading = isDefault ? pageLoading : queryLoading
 
   const filters = (
     <>

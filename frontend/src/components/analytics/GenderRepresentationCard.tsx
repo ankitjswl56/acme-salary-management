@@ -10,28 +10,42 @@ import TextField from '@mui/material/TextField'
 import { visuallyHidden } from '@mui/utils'
 import { getGenderRatio } from '../../api/analytics'
 import { formatCount, formatPercent1, genderLabel } from '../../lib/format'
+import type { GenderHeadcount } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
 import { useAnalyticsQuery } from './useAnalyticsQuery'
-import { useDepartmentOptions } from './useDepartmentOptions'
 
 const ALL = '__all__'
 
 // View 5: gender representation by headcount. It's a count, so it's always
 // safe to show at any group size (unlike average pay - see SalaryByGenderCard).
 // Single-hue bars, sorted by headcount; share is shown as a label / column.
-export function GenderRepresentationCard() {
+//
+// `initialData` is the all-departments result from the one dashboard request;
+// picking a department is the only thing that fires this card's own fetch.
+export function GenderRepresentationCard({
+  initialData,
+  departments,
+  loading: pageLoading = false,
+}: {
+  initialData: GenderHeadcount[]
+  departments: string[]
+  loading?: boolean
+}) {
   const [department, setDepartment] = useState(ALL)
-  const departments = useDepartmentOptions()
-  const scoped = department === ALL ? undefined : department
+  const isDefault = department === ALL
 
-  const { data, loading, error } = useAnalyticsQuery(
-    () => getGenderRatio(scoped),
+  const { data, loading: queryLoading, error } = useAnalyticsQuery(
+    () => (isDefault ? Promise.resolve(initialData) : getGenderRatio(department)),
     `gender-ratio:${department}`,
   )
   const tokens = useChartTokens()
 
-  const rows = [...(data ?? [])].sort((a, b) => b.headcount - a.headcount)
+  // At the default scope the card mirrors the dashboard payload live; a
+  // department pick switches to this card's own fetched result.
+  const source = isDefault ? initialData : (data ?? [])
+  const loading = isDefault ? pageLoading : queryLoading
+  const rows = [...source].sort((a, b) => b.headcount - a.headcount)
   const total = rows.reduce((sum, r) => sum + r.headcount, 0)
   const chartData = rows.map((r) => ({ label: genderLabel(r.gender), headcount: r.headcount }))
 

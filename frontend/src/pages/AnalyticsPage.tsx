@@ -1,7 +1,7 @@
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { getSalaryByCountry, getSalaryByDepartment } from '../api/analytics'
 import { GenderRepresentationCard } from '../components/analytics/GenderRepresentationCard'
 import { HeadcountPayrollCard } from '../components/analytics/HeadcountPayrollCard'
 import { HeadlineBand } from '../components/analytics/HeadlineBand'
@@ -10,6 +10,7 @@ import { RecentChangesCard } from '../components/analytics/RecentChangesCard'
 import { SalaryByGenderCard } from '../components/analytics/SalaryByGenderCard'
 import { SalaryComparisonCard } from '../components/analytics/SalaryComparisonCard'
 import { SalaryDistributionCard } from '../components/analytics/SalaryDistributionCard'
+import { useDashboardData } from '../components/analytics/useDashboardData'
 
 const twoCol = {
   display: 'grid',
@@ -23,7 +24,17 @@ const twoCol = {
 // org-wide spread), then a named "Pay equity" section, then the audit feed.
 // Reachable by every authenticated role - the only surface executive_viewer
 // can see.
+//
+// The whole page is one request (GET /analytics/dashboard). Each card renders
+// from a slice of that payload; the three filterable cards only issue their
+// own request when a filter moves off its default.
 export function AnalyticsPage() {
+  const { data, loading, error } = useDashboardData()
+
+  const departments = data
+    ? [...new Set(data.salary_by_department.map((row) => row.department))].sort()
+    : []
+
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }} gutterBottom>
@@ -35,12 +46,22 @@ export function AnalyticsPage() {
         was created.
       </Typography>
 
-      <HeadlineBand />
+      {error && (
+        <Alert severity="error" variant="outlined" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      <HeadlineBand
+        byCountry={data?.headcount_payroll_by_country ?? []}
+        trend={data?.payroll_trend ?? []}
+        loading={loading}
+      />
 
       {/* Where the headline spend goes, then how it's moved over time. */}
       <Stack spacing={2}>
-        <HeadcountPayrollCard />
-        <PayrollTrendCard />
+        <HeadcountPayrollCard data={data?.headcount_payroll_by_country ?? []} loading={loading} />
+        <PayrollTrendCard data={data?.payroll_trend ?? []} loading={loading} />
       </Stack>
 
       {/* How individuals are paid - average/median for one person, by group. */}
@@ -49,22 +70,22 @@ export function AnalyticsPage() {
           title="Pay by country (per employee)"
           description="Average and median of one active employee's current USD salary — not total cost. Highest median first."
           dimensionLabel="Country"
-          queryKey="salary-by-country"
-          fetcher={getSalaryByCountry}
+          data={data?.salary_by_country ?? []}
+          loading={loading}
           getLabel={(row) => row.country}
         />
         <SalaryComparisonCard
           title="Pay by department (per employee)"
           description="Average and median of one active employee's current USD salary. Highest median first."
           dimensionLabel="Department"
-          queryKey="salary-by-department"
-          fetcher={getSalaryByDepartment}
+          data={data?.salary_by_department ?? []}
+          loading={loading}
           getLabel={(row) => row.department}
         />
       </Box>
 
       <Box sx={{ mt: 2 }}>
-        <SalaryDistributionCard />
+        <SalaryDistributionCard data={data?.salary_distribution ?? []} loading={loading} />
       </Box>
 
       <Box
@@ -86,12 +107,20 @@ export function AnalyticsPage() {
       </Box>
 
       <Box sx={twoCol}>
-        <GenderRepresentationCard />
-        <SalaryByGenderCard />
+        <GenderRepresentationCard
+          initialData={data?.gender_ratio ?? []}
+          departments={departments}
+          loading={loading}
+        />
+        <SalaryByGenderCard
+          initialData={data?.salary_by_gender ?? []}
+          departments={departments}
+          loading={loading}
+        />
       </Box>
 
       <Box sx={{ mt: 2 }}>
-        <RecentChangesCard />
+        <RecentChangesCard initialData={data?.recent_changes ?? []} loading={loading} />
       </Box>
     </Box>
   )

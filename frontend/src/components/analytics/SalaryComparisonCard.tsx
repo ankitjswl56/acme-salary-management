@@ -8,7 +8,6 @@ import { visuallyHidden } from '@mui/utils'
 import { formatCount, formatUsd, formatUsdCompact } from '../../lib/format'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
-import { useAnalyticsQuery } from './useAnalyticsQuery'
 
 interface SalaryComparisonRow {
   headcount: number
@@ -21,9 +20,9 @@ interface SalaryComparisonCardProps<T extends SalaryComparisonRow> {
   description: string
   /** Column/axis header for the grouping dimension, e.g. "Country". */
   dimensionLabel: string
-  /** Distinguishes this view's query from the other one using this card. */
-  queryKey: string
-  fetcher: () => Promise<T[]>
+  data: T[]
+  loading?: boolean
+  error?: string
   /** Pulls the dimension value off a row, e.g. `(r) => r.country`. */
   getLabel: (row: T) => string
 }
@@ -39,14 +38,14 @@ export function SalaryComparisonCard<T extends SalaryComparisonRow>({
   title,
   description,
   dimensionLabel,
-  queryKey,
-  fetcher,
+  data,
+  loading = false,
+  error = '',
   getLabel,
 }: SalaryComparisonCardProps<T>) {
-  const { data, loading, error } = useAnalyticsQuery(fetcher, queryKey)
   const tokens = useChartTokens()
 
-  const rows = [...(data ?? [])].sort((a, b) => b.median_salary_usd - a.median_salary_usd)
+  const rows = [...data].sort((a, b) => b.median_salary_usd - a.median_salary_usd)
   const chartData = rows.map((row) => ({
     label: getLabel(row),
     avg_salary_usd: row.avg_salary_usd,

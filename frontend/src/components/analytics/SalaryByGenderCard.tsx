@@ -13,13 +13,14 @@ import Typography from '@mui/material/Typography'
 import { visuallyHidden } from '@mui/utils'
 import { getSalaryByGender } from '../../api/analytics'
 import { formatCount, formatUsd, formatUsdCompact, genderLabel } from '../../lib/format'
+import type { GenderSalaryStats } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
 import { HatchSwatch } from './SuppressedNote'
 import { useAnalyticsQuery } from './useAnalyticsQuery'
-import { useDepartmentOptions } from './useDepartmentOptions'
 
 const ALL = '__all__'
+const DEFAULT_MIN_GROUP_SIZE = 5
 const GROUP_SIZES = [5, 10, 20]
 
 // View 6: average current USD salary by gender, within an optional department
@@ -27,19 +28,34 @@ const GROUP_SIZES = [5, 10, 20]
 // below the minimum - an average over a handful of people can expose an
 // individual's pay. Suppressed groups are shown as a labelled state, never as
 // a zero bar and never dropped silently.
-export function SalaryByGenderCard() {
+//
+// `initialData` is the all-departments / min-group-size-5 result from the one
+// dashboard request; changing either filter fires this card's own fetch.
+export function SalaryByGenderCard({
+  initialData,
+  departments,
+  loading: pageLoading = false,
+}: {
+  initialData: GenderSalaryStats[]
+  departments: string[]
+  loading?: boolean
+}) {
   const [department, setDepartment] = useState(ALL)
-  const [minGroupSize, setMinGroupSize] = useState(5)
-  const departments = useDepartmentOptions()
+  const [minGroupSize, setMinGroupSize] = useState(DEFAULT_MIN_GROUP_SIZE)
+  const isDefault = department === ALL && minGroupSize === DEFAULT_MIN_GROUP_SIZE
   const scoped = department === ALL ? undefined : department
 
-  const { data, loading, error } = useAnalyticsQuery(
-    () => getSalaryByGender({ department: scoped, minGroupSize }),
+  const { data, loading: queryLoading, error } = useAnalyticsQuery(
+    () =>
+      isDefault
+        ? Promise.resolve(initialData)
+        : getSalaryByGender({ department: scoped, minGroupSize }),
     `salary-by-gender:${department}:${minGroupSize}`,
   )
   const tokens = useChartTokens()
 
-  const rows = data ?? []
+  const rows = isDefault ? initialData : (data ?? [])
+  const loading = isDefault ? pageLoading : queryLoading
   const shown = rows.filter((r) => !r.suppressed && r.avg_salary_usd != null)
   const suppressed = rows.filter((r) => r.suppressed)
   const chartData = [...shown]

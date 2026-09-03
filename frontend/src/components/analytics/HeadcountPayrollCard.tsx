@@ -5,11 +5,10 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import { visuallyHidden } from '@mui/utils'
-import { getHeadcountPayrollByCountry } from '../../api/analytics'
 import { formatCount, formatPercent1, formatUsd, formatUsdCompact } from '../../lib/format'
+import type { CountryPayroll } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
-import { useAnalyticsQuery } from './useAnalyticsQuery'
 
 const ROW_PX = 24
 const CHART_CHROME_PX = 64
@@ -18,14 +17,18 @@ const CHART_CHROME_PX = 64
 // headcount x salary. This is a breakdown of the headline total-payroll
 // figure, NOT the same thing as "Pay by country" (view 1), which is the
 // average/median salary of one person. Sorted by payroll, descending.
-export function HeadcountPayrollCard() {
-  const { data, loading, error } = useAnalyticsQuery(
-    getHeadcountPayrollByCountry,
-    'headcount-payroll-by-country',
-  )
+export function HeadcountPayrollCard({
+  data,
+  loading = false,
+  error = '',
+}: {
+  data: CountryPayroll[]
+  loading?: boolean
+  error?: string
+}) {
   const tokens = useChartTokens()
 
-  const rows = [...(data ?? [])].sort((a, b) => b.total_payroll_usd - a.total_payroll_usd)
+  const rows = [...data].sort((a, b) => b.total_payroll_usd - a.total_payroll_usd)
   const totalPayroll = rows.reduce((sum, r) => sum + r.total_payroll_usd, 0)
   const maxPayroll = rows.length ? Math.max(...rows.map((r) => r.total_payroll_usd)) : 0
   const chartData = rows.map((r) => ({ label: r.country, total_payroll_usd: r.total_payroll_usd }))

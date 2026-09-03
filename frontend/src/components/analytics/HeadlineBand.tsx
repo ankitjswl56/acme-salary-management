@@ -1,37 +1,30 @@
-import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import { getHeadcountPayrollByCountry, getPayrollTrend } from '../../api/analytics'
 import { formatCount, formatSignedPercent, formatUsdCompact } from '../../lib/format'
+import type { CountryPayroll, QuarterlyPayroll } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { Sparkline } from './Sparkline'
 import { StatTile, type StatDelta } from './StatTile'
-import { useAnalyticsQuery } from './useAnalyticsQuery'
 
-const TREND_QUARTERS = 6
-
-function fetchHeadline() {
-  return Promise.all([getHeadcountPayrollByCountry(), getPayrollTrend(TREND_QUARTERS)])
-}
+// Number of trailing quarters shown in the run-rate sparkline.
+const SPARK_QUARTERS = 6
 
 // Tier 1: the three figures the whole dashboard is oriented around. Total
 // payroll is the one deliberately bold element; everything below stays quiet.
-export function HeadlineBand() {
-  const { data, loading, error } = useAnalyticsQuery(fetchHeadline, 'headline')
+export function HeadlineBand({
+  byCountry,
+  trend,
+  loading = false,
+}: {
+  byCountry: CountryPayroll[]
+  trend: QuarterlyPayroll[]
+  loading?: boolean
+}) {
   const tokens = useChartTokens()
 
-  if (error) {
-    return (
-      <Alert severity="error" variant="outlined" sx={{ mb: 3 }}>
-        {error}
-      </Alert>
-    )
-  }
-
-  const [byCountry, trend] = data ?? [[], []]
   const totalPayroll = byCountry.reduce((sum, r) => sum + r.total_payroll_usd, 0)
   const totalHeadcount = byCountry.reduce((sum, r) => sum + r.headcount, 0)
 
-  const sparkValues = trend.map((q) => q.total_payroll_usd)
+  const sparkValues = trend.slice(-SPARK_QUARTERS).map((q) => q.total_payroll_usd)
   let delta: StatDelta | undefined
   if (trend.length >= 2) {
     const prev = trend[trend.length - 2].total_payroll_usd

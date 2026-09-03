@@ -5,26 +5,26 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import { visuallyHidden } from '@mui/utils'
-import { getPayrollTrend } from '../../api/analytics'
 import { formatCount, formatSignedPercent, formatUsd, formatUsdCompact } from '../../lib/format'
+import type { QuarterlyPayroll } from '../../types/api'
 import { useChartTokens } from '../../theme'
 import { ChartCard } from './ChartCard'
-import { useAnalyticsQuery } from './useAnalyticsQuery'
-
-const QUARTERS = 8
-
-function fetchTrend() {
-  return getPayrollTrend(QUARTERS)
-}
 
 // View 8: total payroll run-rate at each quarter end, oldest first. Plotted
 // as a line on a non-zero axis so the growth *slope* is legible - a filled
 // area to zero would flatten an 8% move into a straight line.
-export function PayrollTrendCard() {
-  const { data, loading, error } = useAnalyticsQuery(fetchTrend, 'payroll-trend')
+export function PayrollTrendCard({
+  data,
+  loading = false,
+  error = '',
+}: {
+  data: QuarterlyPayroll[]
+  loading?: boolean
+  error?: string
+}) {
   const tokens = useChartTokens()
 
-  const rows = data ?? []
+  const rows = data
   const chartData = rows.map((r) => ({
     quarter: r.quarter,
     total_payroll_usd: r.total_payroll_usd,
