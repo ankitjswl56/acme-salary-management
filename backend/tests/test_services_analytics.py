@@ -2,6 +2,7 @@ from datetime import date
 
 from app.models import ChangeType, Employee, EmployeeStatus, Gender, SalaryRecord
 from app.services.analytics import (
+    _quarter_end_dates,
     avg_median_salary_by_country,
     avg_median_salary_by_department,
     avg_salary_by_gender,
@@ -312,6 +313,42 @@ def test_payroll_trend_by_quarter_returns_requested_count_oldest_first(session):
     result = payroll_trend_by_quarter(session, quarters=3, as_of=TODAY)
 
     assert [row["quarter"] for row in result] == ["2026-Q1", "2026-Q2", "2026-Q3"]
+
+
+def test_payroll_trend_matches_per_quarter_snapshot_resolution(session):
+    """The single-fetch rewrite must produce exactly what resolving the
+    current salary per quarter-end via get_current_salary_snapshots would."""
+    # hire-only, well before the window
+    e1 = _make_employee(session, email="e1@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, e1, 90000, date(2020, 1, 1), ChangeType.hire)
+    # hire + raise straddling a quarter boundary
+    e2 = _make_employee(session, email="e2@acme.test", hire_date=date(2024, 1, 1))
+    _add_record(session, e2, 100000, date(2024, 1, 1), ChangeType.hire)
+    _add_record(session, e2, 120000, date(2025, 5, 10), ChangeType.raise_)
+    # currently inactive - still counts historically
+    e3 = _make_employee(
+        session, email="e3@acme.test", hire_date=date(2023, 6, 1), status=EmployeeStatus.inactive
+    )
+    _add_record(session, e3, 70000, date(2023, 6, 1), ChangeType.hire)
+    # future-dated record - must never enter any quarter
+    e4 = _make_employee(session, email="e4@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, e4, 80000, date(2020, 1, 1), ChangeType.hire)
+    _add_record(session, e4, 200000, date(2100, 1, 1), ChangeType.raise_)
+
+    reference = []
+    for label, quarter_end in _quarter_end_dates(TODAY, 6):
+        snaps = get_current_salary_snapshots(
+            session, as_of=min(quarter_end, TODAY), active_only=False
+        )
+        reference.append(
+            {
+                "quarter": label,
+                "headcount": len(snaps),
+                "total_payroll_usd": round(sum(s.amount_usd for s in snaps), 2),
+            }
+        )
+
+    assert payroll_trend_by_quarter(session, quarters=6, as_of=TODAY) == reference
 
 
 def test_snapshot_views_accept_a_shared_precomputed_list(session):

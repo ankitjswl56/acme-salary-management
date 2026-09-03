@@ -16,6 +16,7 @@ per-view percentile-window query — see design-notes.md.
 
 import calendar
 import statistics
+from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import date
 
@@ -332,17 +333,47 @@ def payroll_trend_by_quarter(session: Session, quarters: int = 8, as_of: date | 
     current, still-in-progress quarter — never further ahead than "today",
     so an already-scheduled future raise can't inflate the current quarter
     before it actually takes effect).
+
+    One pass over the salary history, not one window query per quarter: all
+    records up to `as_of` are fetched once, grouped and sorted per employee,
+    then each quarter's "current" record is a binary search into that list.
+    Ordering by (employee_id, effective_date, id) makes bisect_right(...) - 1
+    pick the same row the window query's ORDER BY effective_date DESC, id DESC
+    would.
     """
     as_of = as_of or date.today()
 
+    rows = session.execute(
+        select(
+            SalaryRecord.employee_id,
+            SalaryRecord.effective_date,
+            SalaryRecord.amount_usd_snapshot,
+        )
+        .where(SalaryRecord.effective_date <= as_of)
+        .order_by(SalaryRecord.employee_id, SalaryRecord.effective_date, SalaryRecord.id)
+    ).all()
+
+    by_employee: dict[int, tuple[list[date], list[float]]] = {}
+    for employee_id, effective_date, amount_usd in rows:
+        dates, amounts = by_employee.setdefault(employee_id, ([], []))
+        dates.append(effective_date)
+        amounts.append(amount_usd)
+
     results = []
     for label, quarter_end in _quarter_end_dates(as_of, quarters):
-        snapshots = get_current_salary_snapshots(session, as_of=min(quarter_end, as_of), active_only=False)
+        cutoff = min(quarter_end, as_of)
+        headcount = 0
+        total = 0.0
+        for dates, amounts in by_employee.values():
+            idx = bisect_right(dates, cutoff)
+            if idx:  # employee had an applicable record by the cutoff
+                headcount += 1
+                total += amounts[idx - 1]
         results.append(
             {
                 "quarter": label,
-                "headcount": len(snapshots),
-                "total_payroll_usd": round(sum(s.amount_usd for s in snapshots), 2),
+                "headcount": headcount,
+                "total_payroll_usd": round(total, 2),
             }
         )
     return results
