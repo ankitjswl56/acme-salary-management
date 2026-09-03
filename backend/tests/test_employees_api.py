@@ -96,6 +96,17 @@ def test_list_employees_filters_by_country_and_paginates(client):
     assert len(body["items"]) == 1
 
 
+def test_list_employees_orders_most_recently_added_first(client):
+    first = client.post("/employees", json=_employee_payload(email="a@acme.test")).json()
+    second = client.post("/employees", json=_employee_payload(email="b@acme.test")).json()
+    third = client.post("/employees", json=_employee_payload(email="c@acme.test")).json()
+
+    response = client.get("/employees", params={"limit": 10})
+
+    ids = [item["id"] for item in response.json()["items"]]
+    assert ids == [third["id"], second["id"], first["id"]]
+
+
 def test_update_employee_partial_patch(client):
     created = client.post("/employees", json=_employee_payload()).json()
 

@@ -82,7 +82,10 @@ def list_employees(
     total = session.exec(count_statement).one()
 
     statement = _apply_filters(select(Employee), **filters)
-    items = session.exec(statement.order_by(Employee.id).offset(skip).limit(limit)).all()
+    # Most recently added first (Employee has no created_at column, but id
+    # is sequential on insert, so it's a reliable proxy) - a new hire HR
+    # just added should show up at the top of the list, not the bottom.
+    items = session.exec(statement.order_by(Employee.id.desc()).offset(skip).limit(limit)).all()
 
     return list(items), total
 

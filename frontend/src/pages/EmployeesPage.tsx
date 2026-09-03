@@ -1,24 +1,47 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getFilterOptions, listEmployees } from '../api/employees'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import type { CountryOption, EmployeeRead, EmployeeStatus } from '../types/api'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+const DEFAULT_PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
+function parsePage(value: string | null): number {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1
+}
+
+function parsePageSize(value: string | null): number {
+  const parsed = Number(value)
+  return PAGE_SIZE_OPTIONS.includes(parsed) ? parsed : DEFAULT_PAGE_SIZE
+}
+
+// Filters and pagination live in the URL (not just component state), so a
+// browser refresh keeps the same view instead of silently resetting it,
+// and the current view is bookmarkable/shareable as an ordinary link.
 export function EmployeesPage() {
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
-  const [country, setCountry] = useState('')
-  const [department, setDepartment] = useState('')
-  const [status, setStatus] = useState<EmployeeStatus | ''>('')
-  const [page, setPage] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const country = searchParams.get('country') ?? ''
+  const department = searchParams.get('department') ?? ''
+  const status = (searchParams.get('status') ?? '') as EmployeeStatus | ''
+  const page = parsePage(searchParams.get('page'))
+  const pageSize = parsePageSize(searchParams.get('pageSize'))
+
+  // Raw search text is local state, not read from the URL on every
+  // keystroke - only the debounced value is written back to the URL, so
+  // typing doesn't spam browser history or fire a request per letter.
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '')
+  const debouncedSearch = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS)
+
+  const [pageInput, setPageInput] = useState(String(page))
+  useEffect(() => setPageInput(String(page)), [page])
 
   const [countries, setCountries] = useState<CountryOption[]>([])
   const [departments, setDepartments] = useState<string[]>([])
-
   const [items, setItems] = useState<EmployeeRead[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -37,11 +60,63 @@ export function EmployeesPage() {
       })
   }, [])
 
-  // A filter change should reset back to page 0 - otherwise a narrower
-  // filter could land on a now-empty page past the new result count.
+  // Once the debounce settles, push the search text into the URL (if it
+  // actually changed) and reset back to page 1 - a new search could land
+  // on a now out-of-range page otherwise.
   useEffect(() => {
-    setPage(0)
-  }, [debouncedSearch, country, department, status])
+    if (debouncedSearch === (searchParams.get('search') ?? '')) return
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (debouncedSearch) next.set('search', debouncedSearch)
+        else next.delete('search')
+        next.set('page', '1')
+        return next
+      },
+      { replace: true },
+    )
+    // Only the debounced value should trigger this - searchParams/setSearchParams
+    // intentionally excluded to avoid re-running on every URL change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch])
+
+  function updateFilter(key: string, value: string) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      next.set('page', '1')
+      return next
+    })
+  }
+
+  function updatePageSize(value: string) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      next.set('pageSize', value)
+      next.set('page', '1')
+      return next
+    })
+  }
+
+  function goToPage(target: number) {
+    const clamped = Math.max(1, Math.min(target, totalPages))
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      next.set('page', String(clamped))
+      return next
+    })
+  }
+
+  function handlePageInputSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    goToPage(Number(pageInput))
+  }
+
+  function handleReset() {
+    setSearchInput('')
+    setSearchParams({})
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -53,8 +128,8 @@ export function EmployeesPage() {
       country: country || undefined,
       department: department || undefined,
       status: status || undefined,
-      skip: page * PAGE_SIZE,
-      limit: PAGE_SIZE,
+      skip: (page - 1) * pageSize,
+      limit: pageSize,
     })
       .then((data) => {
         if (cancelled) return
@@ -72,10 +147,12 @@ export function EmployeesPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch, country, department, status, page])
+  }, [debouncedSearch, country, department, status, page, pageSize])
 
-  const from = total === 0 ? 0 : page * PAGE_SIZE + 1
-  const to = Math.min(total, (page + 1) * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const to = Math.min(total, page * pageSize)
+  const hasActiveFilters = Boolean(searchInput || country || department || status)
 
   return (
     <div>
@@ -101,10 +178,10 @@ export function EmployeesPage() {
       <div className="filters">
         <input
           placeholder="Search name or email"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
         />
-        <select value={country} onChange={(event) => setCountry(event.target.value)}>
+        <select value={country} onChange={(event) => updateFilter('country', event.target.value)}>
           <option value="">All countries</option>
           {countries.map(({ code, name }) => (
             <option key={code} value={code}>
@@ -112,7 +189,7 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <select value={department} onChange={(event) => setDepartment(event.target.value)}>
+        <select value={department} onChange={(event) => updateFilter('department', event.target.value)}>
           <option value="">All departments</option>
           {departments.map((value) => (
             <option key={value} value={value}>
@@ -120,14 +197,14 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <select
-          value={status}
-          onChange={(event) => setStatus(event.target.value as EmployeeStatus | '')}
-        >
+        <select value={status} onChange={(event) => updateFilter('status', event.target.value)}>
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        <button type="button" className="secondary" onClick={handleReset} disabled={!hasActiveFilters}>
+          Reset
+        </button>
       </div>
 
       {error && <p className="login-error">{error}</p>}
@@ -171,13 +248,41 @@ export function EmployeesPage() {
           </table>
 
           <div className="pagination">
+            <label className="page-size-select">
+              Rows per page
+              <select value={pageSize} onChange={(event) => updatePageSize(event.target.value)}>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <span className="muted">
               {from}–{to} of {total}
             </span>
-            <button className="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+
+            <button className="secondary" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
               Previous
             </button>
-            <button className="secondary" disabled={to >= total} onClick={() => setPage((p) => p + 1)}>
+
+            <form className="page-jump" onSubmit={handlePageInputSubmit}>
+              <span className="muted">Page</span>
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={pageInput}
+                onChange={(event) => setPageInput(event.target.value)}
+              />
+              <span className="muted">of {totalPages}</span>
+              <button type="submit" className="secondary">
+                Go
+              </button>
+            </form>
+
+            <button className="secondary" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
               Next
             </button>
           </div>
