@@ -25,7 +25,8 @@ requirements, not nice-to-haves.
 ## Locked tech stack — do not deviate
 
 - **Backend**: Python, FastAPI, SQLite, SQLModel (or SQLAlchemy) as ORM
-- **Frontend**: React + Vite (explicitly not Next.js — no SSR/SEO need for an
+- **Frontend**: React + Vite + TypeScript — all new frontend files should be
+  .ts/.tsx, not .js/.jsx (explicitly not Next.js — no SSR/SEO need for an
   internal authenticated tool; see requirements doc for reasoning)
 - **Auth**: JWT-based, custom (not SSO/OAuth — out of scope, see requirements
   doc)
