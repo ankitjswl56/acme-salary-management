@@ -1,29 +1,39 @@
-import { useEffect, useState } from 'react'
-import './App.css'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
+import { Layout } from './components/Layout'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { AnalyticsPage } from './pages/AnalyticsPage'
+import { EmployeesPage } from './pages/EmployeesPage'
+import { HomePage } from './pages/HomePage'
+import { LoginPage } from './pages/LoginPage'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+function AppRoutes() {
+  const { auth } = useAuth()
 
-interface HealthResponse {
-  status: string
+  return (
+    <Routes>
+      <Route path="/login" element={auth ? <Navigate to="/" replace /> : <LoginPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'hr_manager']} />}>
+            <Route path="/employees" element={<EmployeesPage />} />
+          </Route>
+          <Route path="/analytics" element={<AnalyticsPage />} />
+        </Route>
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 function App() {
-  const [status, setStatus] = useState('checking...')
-
-  useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((res) => res.json() as Promise<HealthResponse>)
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus('unreachable'))
-  }, [])
-
   return (
-    <section id="center">
-      <h1>ACME Salary Management</h1>
-      <p>
-        Backend status: <strong>{status}</strong>
-      </p>
-    </section>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   )
 }
 

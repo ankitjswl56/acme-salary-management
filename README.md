@@ -27,6 +27,13 @@ trade-off decisions made along the way.
    docker compose up --build
    ```
 
+   `--build` matters here, not just on the first run: `node_modules` and the
+   Python venv are baked into each image at build time, not volume-mounted
+   (mounting them risks host/container native-binary mismatches), so a
+   dependency change (new npm/pip package) needs a rebuild to actually take
+   effect — a plain `docker compose up` will silently keep using the old
+   image and error on the missing package.
+
 3. Open the app:
 
    - Frontend: http://localhost:5173
