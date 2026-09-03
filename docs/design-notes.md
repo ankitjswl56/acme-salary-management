@@ -266,9 +266,17 @@ without hitting the real file-backed engine (`backend/tests/test_seed.py`).
 ## MUI as the frontend component library (Phase 7 onward only)
 
 Phase 7 (the analytics dashboard) is built with MUI (`@mui/material` +
-`@mui/icons-material`, Emotion engine). Phases 1–6 (employee list/detail/
-forms, bulk raise, CSV import) stay on their existing hand-rolled CSS and
-are **deliberately not being retrofitted** right now.
+`@mui/icons-material` + `@mui/x-charts`, Emotion engine). Phases 1–6
+(employee list/detail/forms, bulk raise, CSV import) stay on their existing
+hand-rolled CSS and are **deliberately not being retrofitted** right now.
+
+`@mui/x-charts` was added (over hand-rolled SVG) because the dashboard has
+7 chart views across bar/line/pie forms with axes, legends, tooltips and
+responsive resizing — re-implementing that chrome by hand is exactly the
+undifferentiated work a library removes, and x-charts shares MUI's theme so
+the charts and the surrounding cards/tables stay visually consistent. Each
+chart view still ships a plain data table alongside it, so the numbers are
+never chart-only.
 
 Why adopt it: the dashboard is the most layout- and component-heavy part of
 the app (cards, data tables, tabs, responsive grid, chart chrome). Hand-
