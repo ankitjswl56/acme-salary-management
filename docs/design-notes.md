@@ -1,5 +1,20 @@
 # Salary Management Software — Design Notes
 
+## Payroll trend by quarter ignores Employee.status entirely
+
+`payroll_trend_by_quarter()` is the one analytics view that doesn't filter
+by `active_only` at all (`get_current_salary_snapshots(..., active_only=False)`).
+`Employee.status` is a point-in-time flag ("is this person active *right
+now*"), not a tracked history — there's no termination date in the schema.
+For a past quarter, "were they active back then" isn't a question the data
+can answer, so filtering a historical trend by *current* status would just
+be wrong (e.g. it would silently drop payroll for a Q1 2024 employee who
+left in 2025). Instead, an employee counts toward a quarter if they had any
+applicable SalaryRecord by that quarter's end — which is also naturally
+capped at `min(quarter_end, as_of)` so an already-scheduled future raise
+can't inflate the current, still-in-progress quarter before it takes
+effect.
+
 ## Analytics: current-salary-per-employee via SQL window function, grouping/median in Python
 
 All "current state" analytics views (1-6) share one building block —

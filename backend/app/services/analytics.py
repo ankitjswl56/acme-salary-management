@@ -14,6 +14,7 @@ in-Python groupby is simpler to read, test, and port to another DB than a
 per-view percentile-window query — see design-notes.md.
 """
 
+import calendar
 import statistics
 from dataclasses import dataclass
 from datetime import date
@@ -22,7 +23,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.models import Employee, SalaryRecord
-from app.models.enums import EmployeeStatus
+from app.models.enums import ChangeType, EmployeeStatus
 
 
 @dataclass(frozen=True)
@@ -226,6 +227,95 @@ def avg_salary_by_gender(
                 "headcount": headcount,
                 "avg_salary_usd": None if suppressed else round(statistics.mean(s.amount_usd for s in group), 2),
                 "suppressed": suppressed,
+            }
+        )
+    return results
+
+
+def _months_ago(reference: date, months: int) -> date:
+    month_index = reference.month - 1 - months
+    year = reference.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(reference.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def recent_changes_feed(
+    session: Session,
+    months: int = 3,
+    change_type: ChangeType | None = None,
+    as_of: date | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Raw SalaryRecord feed, not the "current salary" resolution — an HR
+    ops/audit view of what actually changed recently, regardless of the
+    employee's current active status."""
+    as_of = as_of or date.today()
+    cutoff = _months_ago(as_of, months)
+
+    statement = (
+        select(SalaryRecord, Employee)
+        .join(Employee, Employee.id == SalaryRecord.employee_id)
+        .where(SalaryRecord.effective_date >= cutoff, SalaryRecord.effective_date <= as_of)
+        .order_by(SalaryRecord.effective_date.desc(), SalaryRecord.id.desc())
+        .limit(limit)
+    )
+    if change_type:
+        statement = statement.where(SalaryRecord.change_type == change_type)
+
+    rows = session.execute(statement).all()
+    return [
+        {
+            "employee_id": employee.id,
+            "employee_name": employee.name,
+            "department": employee.department,
+            "country": employee.country,
+            "change_type": record.change_type.value,
+            "effective_date": record.effective_date,
+            "amount": record.amount,
+            "currency": record.currency,
+            "amount_usd": record.amount_usd_snapshot,
+        }
+        for record, employee in rows
+    ]
+
+
+def _quarter_end_dates(as_of: date, count: int) -> list[tuple[str, date]]:
+    year, quarter = as_of.year, (as_of.month - 1) // 3 + 1
+    quarters: list[tuple[str, date]] = []
+    for _ in range(count):
+        month = quarter * 3
+        day = calendar.monthrange(year, month)[1]
+        quarters.append((f"{year}-Q{quarter}", date(year, month, day)))
+        quarter -= 1
+        if quarter == 0:
+            quarter, year = 4, year - 1
+    return list(reversed(quarters))  # oldest first
+
+
+def payroll_trend_by_quarter(session: Session, quarters: int = 8, as_of: date | None = None) -> list[dict]:
+    """Total payroll cost per quarter, over the last `quarters` quarters
+    (including the current, partial one).
+
+    Uses active_only=False: this is a historical view, and Employee.status
+    only tells us who's active *now* — it can't tell us who was active in a
+    past quarter (there's no tracked termination date), so status isn't a
+    meaningful filter here. An employee counts toward a quarter if they had
+    an applicable SalaryRecord by that quarter's end (or by `as_of` for the
+    current, still-in-progress quarter — never further ahead than "today",
+    so an already-scheduled future raise can't inflate the current quarter
+    before it actually takes effect).
+    """
+    as_of = as_of or date.today()
+
+    results = []
+    for label, quarter_end in _quarter_end_dates(as_of, quarters):
+        snapshots = get_current_salary_snapshots(session, as_of=min(quarter_end, as_of), active_only=False)
+        results.append(
+            {
+                "quarter": label,
+                "headcount": len(snapshots),
+                "total_payroll_usd": round(sum(s.amount_usd for s in snapshots), 2),
             }
         )
     return results

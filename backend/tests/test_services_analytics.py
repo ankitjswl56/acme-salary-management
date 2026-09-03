@@ -8,6 +8,8 @@ from app.services.analytics import (
     gender_ratio,
     get_current_salary_snapshots,
     headcount_and_payroll_by_country,
+    payroll_trend_by_quarter,
+    recent_changes_feed,
     salary_distribution,
 )
 
@@ -220,3 +222,93 @@ def test_avg_salary_by_gender_filters_by_department_and_role(session):
     result = avg_salary_by_gender(session, department="Engineering", as_of=TODAY, min_group_size=1)
 
     assert result == [{"gender": "female", "headcount": 1, "avg_salary_usd": 120000.0, "suppressed": False}]
+
+
+def test_recent_changes_feed_includes_only_records_within_the_window(session):
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, employee, 90000, date(2020, 1, 1), ChangeType.hire)
+    _add_record(session, employee, 95000, date(2026, 7, 1), ChangeType.raise_)  # within last 3 months
+    _add_record(session, employee, 100000, date(2026, 12, 1), ChangeType.raise_)  # future, beyond as_of
+
+    result = recent_changes_feed(session, months=3, as_of=TODAY)
+
+    effective_dates = {row["effective_date"] for row in result}
+    assert date(2026, 7, 1) in effective_dates
+    assert date(2020, 1, 1) not in effective_dates  # too old
+    assert date(2026, 12, 1) not in effective_dates  # future relative to as_of
+
+
+def test_recent_changes_feed_filters_by_change_type(session):
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, employee, 90000, date(2026, 7, 1), ChangeType.raise_)
+    _add_record(session, employee, 95000, date(2026, 7, 15), ChangeType.promotion)
+
+    result = recent_changes_feed(session, months=3, as_of=TODAY, change_type=ChangeType.promotion)
+
+    assert len(result) == 1
+    assert result[0]["change_type"] == "promotion"
+
+
+def test_recent_changes_feed_orders_newest_first(session):
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, employee, 90000, date(2026, 6, 15), ChangeType.raise_)
+    _add_record(session, employee, 95000, date(2026, 8, 1), ChangeType.raise_)
+
+    result = recent_changes_feed(session, months=3, as_of=TODAY)
+
+    assert [row["effective_date"] for row in result] == [date(2026, 8, 1), date(2026, 6, 15)]
+
+
+def test_recent_changes_feed_respects_limit(session):
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    for day in range(1, 6):
+        _add_record(session, employee, 90000 + day, date(2026, 8, day), ChangeType.raise_)
+
+    result = recent_changes_feed(session, months=3, as_of=TODAY, limit=2)
+
+    assert len(result) == 2
+
+
+def test_payroll_trend_by_quarter_reflects_salary_at_each_past_quarter_end(session):
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, employee, 80000, date(2020, 1, 1), ChangeType.hire)
+    _add_record(session, employee, 100000, date(2026, 5, 1), ChangeType.raise_)  # effective in Q2 2026
+
+    result = payroll_trend_by_quarter(session, quarters=4, as_of=TODAY)  # Q4'25..Q3'26
+    by_quarter = {row["quarter"]: row for row in result}
+
+    assert by_quarter["2026-Q1"]["total_payroll_usd"] == 80000.0
+    assert by_quarter["2026-Q2"]["total_payroll_usd"] == 100000.0
+    assert by_quarter["2026-Q3"]["total_payroll_usd"] == 100000.0
+
+
+def test_payroll_trend_by_quarter_current_quarter_caps_at_as_of(session):
+    """A raise already scheduled later this quarter must not inflate the
+    current quarter's payroll before it actually takes effect."""
+    employee = _make_employee(session, email="a@acme.test", hire_date=date(2020, 1, 1))
+    _add_record(session, employee, 100000, date(2020, 1, 1), ChangeType.hire)
+    _add_record(session, employee, 150000, date(2026, 9, 15), ChangeType.raise_)  # after TODAY, same quarter
+
+    result = payroll_trend_by_quarter(session, quarters=1, as_of=TODAY)
+
+    assert result == [{"quarter": "2026-Q3", "headcount": 1, "total_payroll_usd": 100000.0}]
+
+
+def test_payroll_trend_by_quarter_includes_currently_inactive_employees(session):
+    """Historical payroll trend isn't filtered by *current* status - there's
+    no tracked termination date, so status can't tell us who was active in a
+    past quarter."""
+    employee = _make_employee(
+        session, email="a@acme.test", hire_date=date(2020, 1, 1), status=EmployeeStatus.inactive
+    )
+    _add_record(session, employee, 90000, date(2020, 1, 1), ChangeType.hire)
+
+    result = payroll_trend_by_quarter(session, quarters=1, as_of=TODAY)
+
+    assert result == [{"quarter": "2026-Q3", "headcount": 1, "total_payroll_usd": 90000.0}]
+
+
+def test_payroll_trend_by_quarter_returns_requested_count_oldest_first(session):
+    result = payroll_trend_by_quarter(session, quarters=3, as_of=TODAY)
+
+    assert [row["quarter"] for row in result] == ["2026-Q1", "2026-Q2", "2026-Q3"]
