@@ -58,12 +58,17 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const auth = getStoredAuth()
   const headers: Record<string, string> = {}
   if (auth?.token) headers.Authorization = `Bearer ${auth.token}`
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+  // FormData (file uploads) is sent as-is - fetch sets the multipart
+  // Content-Type (with the correct boundary) itself, and setting it
+  // manually here would break that.
+  const isFormData = body instanceof FormData
+  if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
 
   const response = await fetch(url, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   })
 
   // A 401 means the token is missing/expired/invalid - clear it and let

@@ -82,6 +82,11 @@ export function EmployeesPage() {
       <div className="page-header">
         <h1>Employees</h1>
         <div className="page-header-actions">
+          <Link to="/employees/import">
+            <button type="button" className="secondary">
+              Import CSV
+            </button>
+          </Link>
           <Link to="/employees/bulk-raise">
             <button type="button" className="secondary">
               Bulk raise

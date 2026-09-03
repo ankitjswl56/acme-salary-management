@@ -1,5 +1,40 @@
 # Salary Management Software — Design Notes
 
+## CSV import reuses create_employee()/create_salary_record() per row
+
+`import_employees_csv()` (app/services/csv_import.py) doesn't reimplement
+employee/salary validation — each row calls the exact same
+`create_employee()` and `create_salary_record()` functions the
+single-employee forms use, so a CSV row is held to identical rules
+(duplicate email, currency allowlist, effective_date >= hire_date, valid
+enum values) and can't silently drift from them as a second, parallel
+implementation would risk.
+
+A row optionally includes `amount`/`currency`; if both are present, an
+initial "hire" `SalaryRecord` is created alongside the `Employee`
+(`effective_date = hire_date`) — otherwise every CSV-onboarded employee
+would start with no salary on record, the same gap the single-employee
+create form has (deliberately: creating an employee and recording their
+pay are separate concerns there), just multiplied across an entire batch,
+which is a real usability problem specifically for bulk onboarding.
+
+**Partial success, two different kinds.** A row that fails to produce an
+*employee* at all (bad required field, duplicate email) is a real error -
+skipped and counted in `errors`. A row whose employee was created fine but
+whose salary columns failed validation (e.g. unsupported currency) is
+different: the employee import itself still succeeded, so it's reported
+separately in `salary_warnings` rather than as a failure. This distinction
+matters because `create_employee()` and `create_salary_record()` each
+commit independently (they're designed as standalone single-operation
+functions, reused here rather than rewritten) - by the time a salary
+error surfaces, the employee row is already durably committed, so there's
+nothing to roll back even if the two were reported identically.
+
+Reads the uploaded file as `utf-8-sig` rather than plain `utf-8`: Excel
+commonly writes a UTF-8 BOM at the start of a CSV it exports, and decoding
+that with plain `utf-8` leaves a stray character prefixed to the first
+column's header, silently breaking the "missing required column" check.
+
 ## Bulk raise: local currency, restricted change_type, partial success
 
 `apply_bulk_raise()` (app/services/bulk.py) applies a % change to every

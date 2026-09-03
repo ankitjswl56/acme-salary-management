@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
@@ -8,6 +8,7 @@ from app.db import get_session
 from app.dependencies import require_role
 from app.models.enums import EmployeeStatus, UserRole
 from app.schemas.bulk import BulkRaiseRequest, BulkRaiseResponse
+from app.schemas.csv_import import CsvImportResponse, CsvImportRowError
 from app.schemas.employee import (
     CurrentSalaryRead,
     EmployeeCreate,
@@ -19,6 +20,7 @@ from app.schemas.employee import (
 )
 from app.services import employee as employee_service
 from app.services.bulk import apply_bulk_raise
+from app.services.csv_import import import_employees_csv
 from app.services.salary import get_current_salary_record
 
 router = APIRouter(
@@ -91,6 +93,29 @@ def bulk_raise(data: BulkRaiseRequest, session: Session = Depends(get_session)):
         applied_count=result.applied_count,
         skipped_no_current_salary=result.skipped_no_current_salary,
         skipped_effective_date_before_hire=result.skipped_effective_date_before_hire,
+    )
+
+
+@router.post("/import", response_model=CsvImportResponse)
+async def import_employees(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """Bulk-onboards employees from a CSV file - registered before
+    /{employee_id} so "import" isn't swallowed as an employee_id path
+    param. Each row is independent: a bad row is skipped and reported,
+    not fatal to the rest of the file."""
+    raw = await file.read()
+    try:
+        contents = raw.decode("utf-8-sig")  # utf-8-sig strips a BOM if present (common from Excel exports)
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 (or ASCII) encoded CSV text")
+
+    result = import_employees_csv(session, contents)
+    return CsvImportResponse(
+        total_rows=result.total_rows,
+        created_count=result.created_count,
+        errors=[CsvImportRowError(row_number=e.row_number, reason=e.reason) for e in result.errors],
+        salary_warnings=[
+            CsvImportRowError(row_number=w.row_number, reason=w.reason) for w in result.salary_warnings
+        ],
     )
 
 

@@ -1,6 +1,7 @@
 import type {
   BulkRaiseRequest,
   BulkRaiseResponse,
+  CsvImportResponse,
   EmployeeCreate,
   EmployeeDetail,
   EmployeeFilterOptions,
@@ -56,4 +57,10 @@ export function createSalaryRecord(employeeId: number, data: SalaryRecordCreate)
 
 export function applyBulkRaise(data: BulkRaiseRequest) {
   return apiFetch<BulkRaiseResponse>('/employees/bulk-raise', { method: 'POST', body: data })
+}
+
+export function importEmployeesCsv(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiFetch<CsvImportResponse>('/employees/import', { method: 'POST', body: formData })
 }

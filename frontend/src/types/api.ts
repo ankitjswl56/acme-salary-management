@@ -119,3 +119,15 @@ export interface BulkRaiseResponse {
   skipped_no_current_salary: number
   skipped_effective_date_before_hire: number
 }
+
+export interface CsvImportRowError {
+  row_number: number
+  reason: string
+}
+
+export interface CsvImportResponse {
+  total_rows: number
+  created_count: number
+  errors: CsvImportRowError[]
+  salary_warnings: CsvImportRowError[]
+}
