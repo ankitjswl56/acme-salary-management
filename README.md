@@ -8,7 +8,7 @@ trade-off decisions made along the way.
 ## Stack
 
 - **Backend**: Python, FastAPI, SQLite, SQLModel
-- **Frontend**: React + Vite
+- **Frontend**: React + Vite + TypeScript, MUI (analytics dashboard)
 - **Auth**: JWT-based, custom
 - **Containerization**: Docker Compose
 

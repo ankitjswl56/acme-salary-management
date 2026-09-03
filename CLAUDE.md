@@ -28,6 +28,10 @@ requirements, not nice-to-haves.
 - **Frontend**: React + Vite + TypeScript — all new frontend files should be
   .ts/.tsx, not .js/.jsx (explicitly not Next.js — no SSR/SEO need for an
   internal authenticated tool; see requirements doc for reasoning)
+- **Frontend component library**: MUI (`@mui/material` + `@mui/icons-material`,
+  Emotion styling engine). Adopted at the start of Phase 7 for the analytics
+  dashboard; Phases 1–6's hand-rolled CSS views are deliberately not being
+  retrofitted (time-boxed decision — see `docs/design-notes.md`).
 - **Auth**: JWT-based, custom (not SSO/OAuth — out of scope, see requirements
   doc)
 - **Containerization**: Docker Compose (backend + frontend services; SQLite as
