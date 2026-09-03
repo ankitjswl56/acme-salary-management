@@ -1,5 +1,27 @@
 # Salary Management Software — Design Notes
 
+## Employee list: URL is the source of truth for filters/pagination
+
+`EmployeesPage.tsx` reads search/country/department/status/page/pageSize
+from `useSearchParams()` rather than plain component state. Two review
+requests drove this together rather than separately: filters should
+survive a browser refresh, and there should be an explicit way to clear
+them instead of relying on a refresh as an ad-hoc "reset." Encoding state
+in the URL solves both at once - a refresh re-reads the same URL, and
+Reset is just `setSearchParams({})`. It also happens to make the current
+filtered view a shareable/bookmarkable link, which wasn't asked for but
+falls out of the same mechanism for free.
+
+Search text stays in local state and is only pushed into the URL once
+the existing debounce settles (`replace: true`, not `push`) - otherwise
+every keystroke would both spam browser history and fire a fetch.
+
+Default sort is `Employee.id DESC` (most recently added first).
+`Employee` has no `created_at` column - CLAUDE.md's schema is locked and
+doesn't include one - but `id` is sequential on insert in this app's
+usage pattern (no deletes/reinserts), so it's a reliable proxy without a
+schema change.
+
 ## CSV import reuses create_employee()/create_salary_record() per row
 
 `import_employees_csv()` (app/services/csv_import.py) doesn't reimplement

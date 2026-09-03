@@ -72,3 +72,37 @@ field when change_type = promotion; backend stays generic. Documented
 the raise/promotion distinction inline in `ChangeType` (previously
 undocumented beyond the member name) and in design-notes.md, and added
 tests for both the coupled and uncoupled cases.
+
+## Phase 6 — three corrections to the "add salary record" / bulk raise UX, all user-caught
+
+None of these were things I flagged myself before shipping — the user
+caught each one in review, and each turned out to be an actual
+correctness or data-integrity gap, not just a UI preference:
+
+1. **"Hire" was offered as a change_type option even for an employee who
+   already had salary history.** Doesn't make sense — you don't re-hire
+   someone already employed. Fixed at the service layer
+   (`create_salary_record()` rejects a second hire for any employee with
+   existing history, any change_type), not just hidden in the dropdown —
+   confirmed a direct API call is blocked too, not only the UI.
+2. **Bulk raise offered a `status` filter (active/inactive/all).** User's
+   point: a raise for someone who already left the company was never a
+   real scenario, so "inactive"/"all" shouldn't have been offered as
+   choices at all. Removed the parameter entirely rather than just
+   changing the default — added a test confirming a stray `"status"` key
+   in the request body is silently ignored, not accepted.
+3. **Bulk raise accepted negative percentages as a "pay cut."** User's
+   point: a negative percentage inserts a `SalaryRecord` with
+   `change_type = "raise"` whose amount is *lower* than the prior one,
+   which reads as self-contradictory in the salary history table.
+   Restricted to strictly positive percentages — `docs/requirements.md`
+   only ever asked for "apply a % raise," so a real bulk pay-cut feature
+   (if ever needed) deserves its own `change_type` concept, not a sign
+   flip on this endpoint.
+
+Pattern worth naming: in each case the fix was to make the *system*
+reject the bad state (service-layer validation, parameter removed
+outright), not just adjust a UI default — consistent with how the
+gender-suppression rule and the future-dated-salary exclusion were
+already implemented in the query/service layer per CLAUDE.md's testing
+philosophy, rather than left to the frontend to hide.
