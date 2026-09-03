@@ -46,3 +46,10 @@ def test_models_create_and_link_via_foreign_key(session):
     assert salary_record.employee.name == "Ada Lovelace"
     assert employee.salary_records[0].amount == 90000
     assert isinstance(salary_record.created_at, datetime)
+
+
+def test_salaryrecord_has_composite_employee_effective_index():
+    # The current-salary window query depends on this composite index for
+    # its partition/sort; assert it isn't dropped by accident.
+    index_names = {ix.name for ix in SalaryRecord.__table__.indexes}
+    assert "ix_salaryrecord_employee_effective" in index_names
