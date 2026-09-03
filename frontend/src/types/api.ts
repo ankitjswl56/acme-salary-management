@@ -199,3 +199,19 @@ export interface QuarterlyPayroll {
   headcount: number
   total_payroll_usd: number
 }
+
+// GET /analytics/dashboard - every view the dashboard needs in one response
+// (backend/app/schemas/analytics.py AnalyticsDashboard). The three filterable
+// views carry their default-parameter result; the frontend re-hits the
+// per-view endpoint when a filter moves off-default.
+export interface AnalyticsDashboard {
+  as_of: string
+  salary_by_country: CountrySalaryStats[]
+  salary_by_department: DepartmentSalaryStats[]
+  headcount_payroll_by_country: CountryPayroll[]
+  salary_distribution: SalaryDistributionBand[]
+  salary_by_gender: GenderSalaryStats[]
+  gender_ratio: GenderHeadcount[]
+  recent_changes: SalaryChangeFeedItem[]
+  payroll_trend: QuarterlyPayroll[]
+}

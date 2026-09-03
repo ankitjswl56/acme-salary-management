@@ -1,4 +1,5 @@
 import type {
+  AnalyticsDashboard,
   ChangeType,
   CountryPayroll,
   CountrySalaryStats,
@@ -11,9 +12,15 @@ import type {
 } from '../types/api'
 import { apiFetch } from './client'
 
-// Wrappers for the 8 fixed analytics views (GET /analytics/*). Parallel to
+// Wrappers for the analytics endpoints (GET /analytics/*). Parallel to
 // api/employees.ts - one thin function per endpoint, the query layer and
 // privacy rules all live in the backend.
+
+// One request for the whole dashboard on load. The per-view wrappers below
+// are still used when a card's filter moves off its default.
+export function getDashboard() {
+  return apiFetch<AnalyticsDashboard>('/analytics/dashboard')
+}
 
 export function getSalaryByCountry() {
   return apiFetch<CountrySalaryStats[]>('/analytics/salary-by-country')
