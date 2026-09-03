@@ -51,6 +51,21 @@ def test_add_salary_record_400_for_unsupported_currency(client):
     assert response.status_code == 400
 
 
+def test_add_salary_record_400_for_a_second_hire(client):
+    employee = _create_employee(client)  # hired 2020-01-15
+    client.post(
+        f"/employees/{employee['id']}/salary-records",
+        json={"amount": 90000, "currency": "GBP", "effective_date": "2020-01-15", "change_type": "hire"},
+    )
+
+    response = client.post(
+        f"/employees/{employee['id']}/salary-records",
+        json={"amount": 95000, "currency": "GBP", "effective_date": "2021-01-01", "change_type": "hire"},
+    )
+
+    assert response.status_code == 400
+
+
 def test_add_salary_record_400_for_effective_date_before_hire(client):
     employee = _create_employee(client)  # hired 2020-01-15
 
@@ -85,3 +100,23 @@ def test_list_salary_records_404_when_employee_missing(client):
     response = client.get("/employees/999/salary-records")
 
     assert response.status_code == 404
+
+
+def test_add_salary_record_with_new_role_updates_employee(client):
+    employee = _create_employee(client, role="Software Engineer II")
+
+    response = client.post(
+        f"/employees/{employee['id']}/salary-records",
+        json={
+            "amount": 120000,
+            "currency": "USD",
+            "effective_date": "2021-01-01",
+            "change_type": "promotion",
+            "new_role": "Senior Software Engineer",
+        },
+    )
+
+    assert response.status_code == 201
+
+    updated_employee = client.get(f"/employees/{employee['id']}").json()
+    assert updated_employee["role"] == "Senior Software Engineer"

@@ -47,3 +47,28 @@ member `.name`, not `.value`). Not something code review would likely have
 caught; found by actually querying seeded data and checking distinct
 `change_type` values against the CLAUDE.md contract. See design-notes.md for
 the fix (`enum_column()` helper with `values_callable`).
+
+## Phase 6 — raise vs. promotion, and payroll scope
+
+**Asked** (by the user, mid-review of the salary-record form): what's the
+actual difference between `change_type` "raise" and "promotion" in this
+system, and does the software track monthly salary payments at all.
+
+**Produced**: a direct answer from what was actually true at the time —
+payroll disbursement tracking is explicitly out of scope per
+`docs/requirements.md`; and raise/promotion were functionally identical
+in the implementation (only the stored label differed, `Employee.role`
+was never touched by either). Rather than silently pick a resolution,
+posed the coupling question back to the user (should recording a
+promotion also update the employee's title, or stay decoupled as
+today) since it changes the interaction model, not just an internal
+implementation detail.
+
+**Accepted**: user chose to couple them. Implemented
+`SalaryRecordCreate.new_role` (optional) — when set, `Employee.role`
+updates in the same commit as the `SalaryRecord`, so a promotion's title
+change can't be saved separately and forgotten. Frontend only shows the
+field when change_type = promotion; backend stays generic. Documented
+the raise/promotion distinction inline in `ChangeType` (previously
+undocumented beyond the member name) and in design-notes.md, and added
+tests for both the coupled and uncoupled cases.

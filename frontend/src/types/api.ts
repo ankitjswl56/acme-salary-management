@@ -86,6 +86,9 @@ export interface SalaryRecordCreate {
   currency: string
   effective_date: string
   change_type: ChangeType
+  // Set alongside change_type "promotion" to update Employee.role in the
+  // same request - see app/schemas/salary_record.py.
+  new_role?: string | null
 }
 
 export interface SalaryRecordRead {

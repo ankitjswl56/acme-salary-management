@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { getEmployee, getSalaryHistory } from '../api/employees'
-import type { EmployeeDetail, SalaryRecordRead } from '../types/api'
+import { createSalaryRecord, getEmployee, getSalaryHistory } from '../api/employees'
+import { AddSalaryRecordForm } from '../components/AddSalaryRecordForm'
+import type { EmployeeDetail, SalaryRecordCreate, SalaryRecordRead } from '../types/api'
 
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -12,8 +13,9 @@ export function EmployeeDetailPage() {
   const [history, setHistory] = useState<SalaryRecordRead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false
     setLoading(true)
     setError('')
@@ -36,6 +38,14 @@ export function EmployeeDetailPage() {
       cancelled = true
     }
   }, [employeeId])
+
+  useEffect(() => load(), [load])
+
+  async function handleAddSalaryRecord(values: SalaryRecordCreate) {
+    await createSalaryRecord(employeeId, values)
+    setShowAddForm(false)
+    load() // current salary and history may both have changed
+  }
 
   if (loading) {
     return <p className="muted">Loading…</p>
@@ -97,7 +107,23 @@ export function EmployeeDetailPage() {
         <p className="muted">No current salary on record.</p>
       )}
 
-      <h2>Salary history</h2>
+      <div className="page-header">
+        <h2>Salary history</h2>
+        {!showAddForm && (
+          <button type="button" onClick={() => setShowAddForm(true)}>
+            Add salary record
+          </button>
+        )}
+      </div>
+
+      {showAddForm && (
+        <AddSalaryRecordForm
+          hasExistingHistory={history.length > 0}
+          onSubmit={handleAddSalaryRecord}
+          onCancel={() => setShowAddForm(false)}
+        />
+      )}
+
       <table>
         <thead>
           <tr>

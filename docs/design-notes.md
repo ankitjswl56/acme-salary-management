@@ -1,5 +1,57 @@
 # Salary Management Software — Design Notes
 
+## "hire" can only be an employee's first SalaryRecord
+
+Flagged by the user: the add-salary-record form offered "Hire" as a
+change_type option even for an employee who already had salary history,
+which doesn't make sense - you don't re-hire someone who's already
+employed. `create_salary_record()` now rejects a "hire" record if the
+employee already has *any* SalaryRecord (of any change_type, not just an
+existing hire) - enforced in the service layer, not just hidden in the
+UI, so a direct API call can't create a nonsensical second hire either.
+The frontend also drops "Hire" from the dropdown once history exists, and
+defaults change_type to "hire" only when there's no history yet.
+
+The seed script is unaffected: it bulk-inserts SalaryRecord rows directly
+rather than going through create_salary_record(), and never generates a
+second hire per employee in the first place.
+
+## Promotions update Employee.role atomically with the SalaryRecord
+
+`raise` vs `promotion` in `change_type` wasn't documented anywhere beyond
+the enum name, and the two were functionally identical: recording either
+just inserted a `SalaryRecord` and never touched `Employee.role`. Surfaced
+when asked directly "what's the difference" — the honest answer at the
+time was "only the label."
+
+The intended distinction: `raise` is a pay change with no role/level
+change (merit increase, market adjustment); `promotion` is a pay change
+tied to a role/level change. Decided to make that real rather than
+document-only: `SalaryRecordCreate.new_role` (optional) updates
+`Employee.role` in the same commit as the `SalaryRecord` when set (see
+`create_salary_record()`), so a promotion's title change can't be saved
+and then forgotten as a separate edit. Not restricted to
+`change_type == promotion` at the schema/service level — the frontend
+only surfaces the "new role" field for promotions, but the backend stays
+generically usable (e.g. a correction that also happens to fix a
+wrongly-recorded title).
+
+## This system doesn't track monthly payroll disbursement
+
+Came up when asked whether "salary updated each month" is a feature. It
+isn't, and per `docs/requirements.md`'s explicit out-of-scope list:
+payroll *execution* (calculating net pay, disbursing payments) is a
+different, heavily-regulated problem from salary *management*. A
+`SalaryRecord` is only written when compensation actually changes (hire,
+raise, promotion, correction, cola) — never a recurring monthly entry.
+"Current salary" is the annual/base rate implied by the latest change,
+not a payment ledger.
+
+Worth flagging so it doesn't read as a contradiction: `payroll-trend`
+(quarterly payroll cost analytics) is an *estimate* of compensation run
+rate — it sums each active employee's current annual salary at each
+quarter-end — not a record of money actually disbursed.
+
 ## Payroll trend by quarter ignores Employee.status entirely
 
 `payroll_trend_by_quarter()` is the one analytics view that doesn't filter

@@ -6,6 +6,7 @@ import type {
   EmployeeRead,
   EmployeeStatus,
   EmployeeUpdate,
+  SalaryRecordCreate,
   SalaryRecordRead,
 } from '../types/api'
 import { apiFetch } from './client'
@@ -42,4 +43,11 @@ export function createEmployee(data: EmployeeCreate) {
 
 export function updateEmployee(id: number, data: EmployeeUpdate) {
   return apiFetch<EmployeeRead>(`/employees/${id}`, { method: 'PATCH', body: data })
+}
+
+export function createSalaryRecord(employeeId: number, data: SalaryRecordCreate) {
+  return apiFetch<SalaryRecordRead>(`/employees/${employeeId}/salary-records`, {
+    method: 'POST',
+    body: data,
+  })
 }

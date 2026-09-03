@@ -24,8 +24,8 @@ class EmployeeStatus(str, Enum):
 
 class ChangeType(str, Enum):
     hire = "hire"
-    raise_ = "raise"
-    promotion = "promotion"
+    raise_ = "raise"  # Pay change with no role/level change (merit increase, market adjustment).
+    promotion = "promotion" # Pay change tied to a role/level change. See SalaryRecordCreate.new_role - the API can update Employee.role atomically with a promotion record so the two can't drift apart.
     correction = "correction" # Fixes a wrong data entry. Kept as a new row (not an edit) to preserve history.
     cola = "cola" # Cost-Of-Living Adjustment: inflation-driven pay change, distinct from merit-based raises for payroll/budget reporting accuracy.
 

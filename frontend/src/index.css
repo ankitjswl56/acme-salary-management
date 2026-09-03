@@ -225,3 +225,12 @@ th {
   gap: 0.5rem 1.5rem;
   margin-bottom: 1.5rem;
 }
+
+.salary-record-form {
+  width: 420px;
+  margin-bottom: 1.5rem;
+}
+.form-actions {
+  display: flex;
+  gap: 0.7rem;
+}

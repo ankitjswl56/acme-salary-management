@@ -157,3 +157,85 @@ def test_create_salary_record_rejects_negative_amount(session):
 
     with pytest.raises(InvalidAmountError):
         create_salary_record(session, employee, data)
+
+
+def test_create_salary_record_with_new_role_updates_employee(session):
+    """A promotion's title change lands atomically with its pay change."""
+    employee = _make_employee(session)  # role="Senior Software Engineer"
+    data = SalaryRecordCreate(
+        amount=1000,
+        currency="USD",
+        effective_date=date(2021, 1, 1),
+        change_type=ChangeType.promotion,
+        new_role="Staff Software Engineer",
+    )
+
+    create_salary_record(session, employee, data)
+
+    session.refresh(employee)
+    assert employee.role == "Staff Software Engineer"
+
+
+def test_create_salary_record_without_new_role_leaves_employee_role_unchanged(session):
+    employee = _make_employee(session)  # role="Senior Software Engineer"
+    data = SalaryRecordCreate(
+        amount=1000, currency="USD", effective_date=date(2021, 1, 1), change_type=ChangeType.raise_
+    )
+
+    create_salary_record(session, employee, data)
+
+    session.refresh(employee)
+    assert employee.role == "Senior Software Engineer"
+
+
+def test_create_salary_record_allows_hire_as_the_first_record(session):
+    employee = _make_employee(session)
+    data = SalaryRecordCreate(
+        amount=90000, currency="USD", effective_date=date(2020, 1, 1), change_type=ChangeType.hire
+    )
+
+    record = create_salary_record(session, employee, data)
+
+    assert record.change_type == ChangeType.hire
+
+
+def test_create_salary_record_rejects_a_second_hire(session):
+    employee = _make_employee(session)
+    create_salary_record(
+        session,
+        employee,
+        SalaryRecordCreate(
+            amount=90000, currency="USD", effective_date=date(2020, 1, 1), change_type=ChangeType.hire
+        ),
+    )
+
+    with pytest.raises(ValueError, match="already has salary history"):
+        create_salary_record(
+            session,
+            employee,
+            SalaryRecordCreate(
+                amount=95000, currency="USD", effective_date=date(2021, 1, 1), change_type=ChangeType.hire
+            ),
+        )
+
+
+def test_create_salary_record_rejects_hire_after_a_non_hire_record_exists(session):
+    """Even if the employee's only record isn't itself a "hire" (e.g. a
+    correction backfilled first), a hire still can't be added second."""
+    employee = _make_employee(session)
+    create_salary_record(
+        session,
+        employee,
+        SalaryRecordCreate(
+            amount=90000, currency="USD", effective_date=date(2020, 1, 1), change_type=ChangeType.correction
+        ),
+    )
+
+    with pytest.raises(ValueError, match="already has salary history"):
+        create_salary_record(
+            session,
+            employee,
+            SalaryRecordCreate(
+                amount=90000, currency="USD", effective_date=date(2020, 1, 1), change_type=ChangeType.hire
+            ),
+        )

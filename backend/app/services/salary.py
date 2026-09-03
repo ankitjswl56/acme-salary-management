@@ -12,6 +12,7 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.models import Employee, SalaryRecord
+from app.models.enums import ChangeType
 from app.schemas.salary_record import SalaryRecordCreate
 from app.services.currency import normalize_to_usd
 
@@ -43,10 +44,25 @@ def get_salary_history(session: Session, employee_id: int) -> list[SalaryRecord]
 def create_salary_record(session: Session, employee: Employee, data: SalaryRecordCreate) -> SalaryRecord:
     """Appends a new SalaryRecord — never updates an existing one. currency
     amount validation and USD normalization is delegated to normalize_to_usd()
-    (fixed FX rate, non-negative amount); the only check here is that a
-    salary change can't predate the employee's hire."""
+    (fixed FX rate, non-negative amount).
+
+    If data.new_role is set (typically alongside change_type=promotion),
+    Employee.role is updated in the same commit — a promotion's title
+    change and pay change land atomically, so they can't drift apart (e.g.
+    the record saved but a follow-up "also edit the title" step forgotten).
+    """
     if data.effective_date < employee.hire_date:
         raise ValueError("effective_date cannot be before the employee's hire_date")
+
+    if data.change_type == ChangeType.hire:
+        already_has_a_record = (
+            session.exec(select(SalaryRecord.id).where(SalaryRecord.employee_id == employee.id).limit(1)).first()
+            is not None
+        )
+        if already_has_a_record:
+            raise ValueError(
+                "employee already has salary history; hire can only be recorded once, as the first record"
+            )
 
     amount_usd_snapshot, fx_rate_to_usd = normalize_to_usd(data.amount, data.currency)
 
@@ -60,6 +76,11 @@ def create_salary_record(session: Session, employee: Employee, data: SalaryRecor
         change_type=data.change_type,
     )
     session.add(record)
+
+    if data.new_role:
+        employee.role = data.new_role
+        session.add(employee)
+
     session.commit()
     session.refresh(record)
     return record
