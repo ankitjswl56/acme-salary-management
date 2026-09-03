@@ -366,3 +366,64 @@ visually-hidden `<caption>` and `<th scope>`); focus rings are visible on
 all filters and toggles; the QoQ delta pairs an arrow glyph + sign with the
 colour; contrast is AA (ink ~13:1, muted ~5.2:1, series ≥ 3:1). Verified in
 light and dark at desktop and 430px.
+
+## Analytics dashboard — load performance
+
+The first cut of the dashboard was slow to load. Two compounding causes:
+
+- **Backend.** Each analytics endpoint is a thin pass-through, and 5 of the
+  8 view functions independently call `get_current_salary_snapshots()` — a
+  `ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY effective_date DESC,
+  id DESC)` window query over the whole salary history.
+  `payroll_trend_by_quarter` ran that query **once per quarter** (8× for the
+  default view). One dashboard load = **13 executions** of that window query
+  across 8 HTTP endpoints.
+- **Frontend.** 9 card components each fetched independently with no dedup
+  or cache — **12 requests for 8 endpoints** (`salary-by-department` ×3,
+  `headcount-payroll-by-country` ×2, `payroll-trend` ×2), doubled again in
+  dev by React StrictMode.
+
+The fix, in order of impact:
+
+1. **`get_current_salary_snapshots()` is computed once per dashboard load.**
+   The 5 current-state views gained an optional trailing `snapshots=` param;
+   a new `dashboard_summary()` computes the list once and threads it into
+   all of them, then adds gender ratio, the recent-changes feed, and the
+   payroll trend. Exposed as `GET /analytics/dashboard` returning every view
+   in one response. The 8 per-view endpoints stay — the 3 filterable cards
+   still call them when a filter moves off its default, and the stretch
+   NL-query feature targets the service functions.
+
+2. **`payroll_trend_by_quarter` resolves from a single fetch.** All salary
+   records up to `as_of` are fetched once, grouped and sorted per employee,
+   then each quarter's "current" record is a `bisect_right(...) - 1` into
+   that list. Ordering by `(employee_id, effective_date, id)` reproduces the
+   window's `ORDER BY effective_date DESC, id DESC` + `rn == 1` tie-break —
+   pinned by a test that compares the output to per-quarter
+   `get_current_salary_snapshots` resolution. One behaviour changed: the old
+   inner join to `employee` silently dropped salary rows pointing at a
+   missing employee; with `foreign_keys=ON` such orphans can't exist.
+
+3. **Composite index `(employee_id, effective_date)` on `SalaryRecord`**,
+   matching the window query's partition/sort. The standalone `employee_id`
+   index was dropped (it's the leftmost prefix of the new one).
+
+4. **SQLite PRAGMAs on connect** (`app/db.py`): `journal_mode=WAL` +
+   `synchronous=NORMAL` so dashboard reads don't contend with the seed
+   transaction / CRUD writes; `temp_store=MEMORY` for the window sort;
+   `foreign_keys=ON` (SQLite leaves FK enforcement off by default — every
+   write path already inserts parent-before-child). The pragma body is a
+   plain function bound to the app engine via a `connect` event, so the
+   in-memory test engine in `conftest.py` is untouched.
+
+5. **Frontend fetches the dashboard once.** `AnalyticsPage` calls
+   `useDashboardData()` and passes slices to the cards as props; the 5
+   static cards became presentational, and the 3 filterable cards take their
+   default result from props and only self-fetch off-default. 12 requests →
+   1 on load (2 in dev under StrictMode).
+
+**No response cache.** After 1–4 the endpoint is ~1 window query + a
+`COUNT` + a bounded join + one trend fetch (~0.15s locally against the 10k
+seed). A short-TTL cache would have added a staleness window after a write —
+during a demo a reviewer who adds an employee and reloads would see stale
+aggregates — for a gain that no longer mattered.

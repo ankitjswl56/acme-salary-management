@@ -145,3 +145,44 @@ object and `categoryGapRatio`/`barGapRatio` onto the band-axis config (not
 the chart) — both caught by typecheck, not docs. `titleTypographyProps` on
 CardHeader is gone in v9 (leaked to the DOM as an attribute at runtime, no
 type error) — switched to `slotProps`.
+
+
+---
+
+## Analytics dashboard — load performance
+
+**Ask:** "the analytics page is way too slow ... 22-25 API calls at once on
+page load. what do you suggest?"
+
+**Diagnosis (two Explore agents, one Plan agent).** Backend: 5 of 8 view
+functions each recompute the `ROW_NUMBER() OVER (PARTITION BY employee_id
+...)` window query, and `payroll_trend_by_quarter` ran it once per quarter —
+13 executions of the expensive query per dashboard load. Frontend: 12
+requests for 8 endpoints (4 exact duplicates, one being `useDepartmentOptions`
+called by two cards), no dedup/cache layer, doubled to ~24 in dev by
+StrictMode.
+
+**Options weighed with the user:** (a) how far to go — chose the core fix
+(aggregate endpoint + single-query trend + composite index + WAL + frontend
+rewire) over a backend-only or "core + client dedup" scope; (b) a 60s
+response cache — declined, since after the query reduction the endpoint is
+~0.15s and a cache only buys instant re-nav at the cost of post-write
+staleness during a demo.
+
+**Accepted as designed:** the `snapshots=` injection param on the 5 views;
+`dashboard_summary()` bundling the 3 filterable views with their
+endpoint-default params so the payload is byte-identical to first paint;
+the `bisect_right` trend rewrite; presentational static cards + "initial
+data from props, self-fetch only off-default" for the filterable ones.
+
+**Corrected during build:** the filterable cards can't just render
+`data ?? initialData` — `useAnalyticsQuery` keys off `queryKey`, so once the
+dashboard payload arrives the effect doesn't re-run and `data` stays the
+empty first value. Fixed by rendering `initialData` directly while filters
+are at their defaults and only reading the hook's `data` once a filter
+diverges.
+
+**Verified:** 130 backend tests green (incl. a trend-equivalence test and a
+"snapshots computed once" test); one dashboard request on load (two in dev
+under StrictMode); each filter change fires exactly one scoped request;
+dashboard renders identically.

@@ -53,6 +53,11 @@ The SQLite database file is written to a named Docker volume (`db-data`)
 mounted at `/data` in the backend container, so it persists across
 `docker compose down` / `up` cycles. Use `docker compose down -v` to reset it.
 
+> **Upgrading an existing volume:** schema-index changes (e.g. the analytics
+> composite index) are only applied when the tables are created. If you have
+> a `db-data` volume from an earlier build, run `docker compose down -v`
+> once so it's recreated (the database re-seeds automatically on next start).
+
 ## Running locally without Docker
 
 **Backend**
