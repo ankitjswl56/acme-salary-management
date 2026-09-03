@@ -11,6 +11,7 @@ from app.schemas.employee import (
     CurrentSalaryRead,
     EmployeeCreate,
     EmployeeDetail,
+    EmployeeFilterOptions,
     EmployeeListResponse,
     EmployeeRead,
     EmployeeUpdate,
@@ -56,6 +57,15 @@ def list_employees(
         limit=limit,
     )
     return EmployeeListResponse(total=total, items=items)
+
+
+@router.get("/filters", response_model=EmployeeFilterOptions)
+def get_filter_options(session: Session = Depends(get_session)):
+    """Distinct country/department values actually in use - registered
+    before /{employee_id} so "filters" isn't swallowed as an employee_id
+    path param."""
+    countries, departments = employee_service.get_distinct_countries_and_departments(session)
+    return EmployeeFilterOptions(countries=countries, departments=departments)
 
 
 @router.get("/{employee_id}", response_model=EmployeeDetail)

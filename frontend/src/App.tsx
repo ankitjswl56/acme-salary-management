@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AnalyticsPage } from './pages/AnalyticsPage'
+import { EmployeeDetailPage } from './pages/EmployeeDetailPage'
 import { EmployeesPage } from './pages/EmployeesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -19,6 +20,7 @@ function AppRoutes() {
           <Route path="/" element={<HomePage />} />
           <Route element={<ProtectedRoute allowedRoles={['admin', 'hr_manager']} />}>
             <Route path="/employees" element={<EmployeesPage />} />
+            <Route path="/employees/:id" element={<EmployeeDetailPage />} />
           </Route>
           <Route path="/analytics" element={<AnalyticsPage />} />
         </Route>

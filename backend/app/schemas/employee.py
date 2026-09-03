@@ -55,3 +55,13 @@ class EmployeeDetail(EmployeeRead):
 class EmployeeListResponse(SQLModel):
     total: int
     items: list[EmployeeRead]
+
+
+class CountryOption(SQLModel):
+    code: str
+    name: str
+
+
+class EmployeeFilterOptions(SQLModel):
+    countries: list[CountryOption]
+    departments: list[str]

@@ -111,3 +111,37 @@ def test_update_employee_404_when_missing(client):
     response = client.patch("/employees/999", json={"department": "Product"})
 
     assert response.status_code == 404
+
+
+def test_get_filter_options_returns_distinct_sorted_values(client):
+    client.post("/employees", json=_employee_payload(email="a@acme.test", country="US", department="Sales"))
+    client.post("/employees", json=_employee_payload(email="b@acme.test", country="UK", department="Sales"))
+    client.post("/employees", json=_employee_payload(email="c@acme.test", country="US", department="Engineering"))
+
+    response = client.get("/employees/filters")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["countries"] == [
+        {"code": "UK", "name": "United Kingdom"},
+        {"code": "US", "name": "United States"},
+    ]
+    assert body["departments"] == ["Engineering", "Sales"]
+
+
+def test_get_filter_options_resolves_unknown_country_code_to_itself(client):
+    """A country added by hand through the API (not the seed script) won't
+    be in the reference table - falls back to the code as its own label
+    rather than erroring."""
+    client.post("/employees", json=_employee_payload(country="ZZ"))
+
+    response = client.get("/employees/filters")
+
+    assert response.json()["countries"] == [{"code": "ZZ", "name": "ZZ"}]
+
+
+def test_get_filter_options_empty_when_no_employees(client):
+    response = client.get("/employees/filters")
+
+    assert response.status_code == 200
+    assert response.json() == {"countries": [], "departments": []}

@@ -64,3 +64,38 @@ export interface EmployeeListResponse {
   total: number
   items: EmployeeRead[]
 }
+
+// Distinct country/department values actually in use, for filter dropdowns
+// - not a hardcoded list, since country/department aren't locked to a fixed
+// enum on the backend the way gender/status/change_type are. Employee.country
+// stores a reference-data code (e.g. "US"); the backend resolves each to its
+// display name for the dropdown label, while `code` stays what's sent back
+// as the actual filter value.
+export interface CountryOption {
+  code: string
+  name: string
+}
+
+export interface EmployeeFilterOptions {
+  countries: CountryOption[]
+  departments: string[]
+}
+
+export interface SalaryRecordCreate {
+  amount: number
+  currency: string
+  effective_date: string
+  change_type: ChangeType
+}
+
+export interface SalaryRecordRead {
+  id: number
+  employee_id: number
+  amount: number
+  currency: string
+  amount_usd_snapshot: number
+  fx_rate_to_usd: number
+  effective_date: string
+  change_type: ChangeType
+  created_at: string
+}
