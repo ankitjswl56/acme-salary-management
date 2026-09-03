@@ -1,5 +1,26 @@
 # Salary Management Software — Design Notes
 
+## Analytics: current-salary-per-employee via SQL window function, grouping/median in Python
+
+All "current state" analytics views (1-6) share one building block —
+`get_current_salary_snapshots()` in `app/services/analytics.py` — which
+resolves each employee's *current* SalaryRecord (latest with
+`effective_date <= as_of`) using a `ROW_NUMBER() OVER (PARTITION BY
+employee_id ORDER BY effective_date DESC, id DESC)` window query, joined
+back to Employee. This is the same "current salary" rule as the CRUD detail
+endpoint and the standalone `get_current_salary_record()` service, just
+resolved for every employee in one query instead of one row at a time —
+necessary to avoid N+1 queries at 10k-employee scale.
+
+Grouping and median are then done in Python (`statistics.median`,
+dict-based groupby) rather than pushed further into SQL. SQLite has no
+native `MEDIAN`/percentile aggregate, and a portable one requires either a
+second window-function pass or DB-specific extensions. At this data scale
+(10k employees, one row each after the join) an in-Python groupby is
+simpler to read, test, and keep portable if the DB is ever swapped —
+traded a small amount of query-pushdown performance for that simplicity,
+which is the right call at this scale.
+
 ## No hard delete for Employee
 
 The Employee CRUD API (Phase 3) intentionally has no `DELETE /employees/{id}`.
