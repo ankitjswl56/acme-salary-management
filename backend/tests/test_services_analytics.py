@@ -312,3 +312,36 @@ def test_payroll_trend_by_quarter_returns_requested_count_oldest_first(session):
     result = payroll_trend_by_quarter(session, quarters=3, as_of=TODAY)
 
     assert [row["quarter"] for row in result] == ["2026-Q1", "2026-Q2", "2026-Q3"]
+
+
+def test_snapshot_views_accept_a_shared_precomputed_list(session):
+    """dashboard_summary computes the snapshot list once and threads it into
+    every current-state view; passing snapshots= must match computing it
+    per-view."""
+    for email, country, dept, gender in [
+        ("a@acme.test", "US", "Engineering", Gender.female),
+        ("b@acme.test", "US", "Engineering", Gender.male),
+        ("c@acme.test", "UK", "Sales", Gender.female),
+        ("d@acme.test", "UK", "Sales", Gender.male),
+        ("e@acme.test", "UK", "Sales", Gender.female),
+    ]:
+        employee = _make_employee(session, email=email, country=country, department=dept, gender=gender)
+        _add_record(session, employee, 90000, date(2020, 1, 1))
+
+    shared = get_current_salary_snapshots(session, as_of=TODAY)
+
+    assert avg_median_salary_by_country(session, snapshots=shared) == avg_median_salary_by_country(
+        session, as_of=TODAY
+    )
+    assert avg_median_salary_by_department(session, snapshots=shared) == avg_median_salary_by_department(
+        session, as_of=TODAY
+    )
+    assert headcount_and_payroll_by_country(session, snapshots=shared) == headcount_and_payroll_by_country(
+        session, as_of=TODAY
+    )
+    assert salary_distribution(session, snapshots=shared) == salary_distribution(session, as_of=TODAY)
+    assert avg_salary_by_gender(session, snapshots=shared) == avg_salary_by_gender(session, as_of=TODAY)
+    # department narrowing still applies to the passed list
+    assert avg_salary_by_gender(session, department="Sales", snapshots=shared) == avg_salary_by_gender(
+        session, department="Sales", as_of=TODAY
+    )

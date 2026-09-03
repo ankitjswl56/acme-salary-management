@@ -104,8 +104,15 @@ def _group_by(snapshots: list[CurrentSalarySnapshot], key: str) -> dict[str, lis
     return groups
 
 
-def avg_median_salary_by_country(session: Session, as_of: date | None = None) -> list[dict]:
-    snapshots = get_current_salary_snapshots(session, as_of)
+def avg_median_salary_by_country(
+    session: Session,
+    as_of: date | None = None,
+    snapshots: list[CurrentSalarySnapshot] | None = None,
+) -> list[dict]:
+    # When `snapshots` is supplied the caller owns as-of consistency (see
+    # dashboard_summary); `as_of` is then ignored.
+    if snapshots is None:
+        snapshots = get_current_salary_snapshots(session, as_of)
     groups = _group_by(snapshots, "country")
 
     return [
@@ -119,8 +126,13 @@ def avg_median_salary_by_country(session: Session, as_of: date | None = None) ->
     ]
 
 
-def avg_median_salary_by_department(session: Session, as_of: date | None = None) -> list[dict]:
-    snapshots = get_current_salary_snapshots(session, as_of)
+def avg_median_salary_by_department(
+    session: Session,
+    as_of: date | None = None,
+    snapshots: list[CurrentSalarySnapshot] | None = None,
+) -> list[dict]:
+    if snapshots is None:
+        snapshots = get_current_salary_snapshots(session, as_of)
     groups = _group_by(snapshots, "department")
 
     return [
@@ -134,8 +146,13 @@ def avg_median_salary_by_department(session: Session, as_of: date | None = None)
     ]
 
 
-def headcount_and_payroll_by_country(session: Session, as_of: date | None = None) -> list[dict]:
-    snapshots = get_current_salary_snapshots(session, as_of)
+def headcount_and_payroll_by_country(
+    session: Session,
+    as_of: date | None = None,
+    snapshots: list[CurrentSalarySnapshot] | None = None,
+) -> list[dict]:
+    if snapshots is None:
+        snapshots = get_current_salary_snapshots(session, as_of)
     groups = _group_by(snapshots, "country")
 
     return [
@@ -160,10 +177,15 @@ SALARY_DISTRIBUTION_BANDS: list[tuple[float, float, str]] = [
 ]
 
 
-def salary_distribution(session: Session, as_of: date | None = None) -> list[dict]:
+def salary_distribution(
+    session: Session,
+    as_of: date | None = None,
+    snapshots: list[CurrentSalarySnapshot] | None = None,
+) -> list[dict]:
     """Org-wide histogram of current USD salary, in fixed bands. Every band
     is included even with zero headcount, so a chart doesn't have gaps."""
-    snapshots = get_current_salary_snapshots(session, as_of)
+    if snapshots is None:
+        snapshots = get_current_salary_snapshots(session, as_of)
 
     counts = {label: 0 for _, _, label in SALARY_DISTRIBUTION_BANDS}
     for snapshot in snapshots:
@@ -200,14 +222,19 @@ def avg_salary_by_gender(
     role: str | None = None,
     as_of: date | None = None,
     min_group_size: int = DEFAULT_MIN_GROUP_SIZE,
+    snapshots: list[CurrentSalarySnapshot] | None = None,
 ) -> list[dict]:
     """Average current USD salary by gender, within an optional department/
     role scope. A group's average is suppressed (avg_salary_usd = None) when
     its headcount is below min_group_size, since — unlike headcount — an
     average derived from a handful of individuals' pay risks indirectly
     exposing one person's salary. Enforced here in the query layer, not left
-    to the frontend to hide."""
-    snapshots = get_current_salary_snapshots(session, as_of)
+    to the frontend to hide.
+
+    When `snapshots` is supplied it's used as the starting set (the caller
+    owns as-of consistency); the department/role narrowing still applies."""
+    if snapshots is None:
+        snapshots = get_current_salary_snapshots(session, as_of)
     if department:
         snapshots = [s for s in snapshots if s.department == department]
     if role:
