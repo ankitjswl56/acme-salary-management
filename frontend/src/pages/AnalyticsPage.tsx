@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography'
 import { GenderRepresentationCard } from '../components/analytics/GenderRepresentationCard'
 import { HeadcountPayrollCard } from '../components/analytics/HeadcountPayrollCard'
 import { HeadlineBand } from '../components/analytics/HeadlineBand'
+import { NLQueryBox } from '../components/analytics/NLQueryBox'
 import { PayrollTrendCard } from '../components/analytics/PayrollTrendCard'
 import { RecentChangesCard } from '../components/analytics/RecentChangesCard'
 import { SalaryByGenderCard } from '../components/analytics/SalaryByGenderCard'
@@ -45,6 +46,10 @@ export function AnalyticsPage() {
         checks. All figures are normalized to USD at the exchange rate captured when each record
         was created.
       </Typography>
+
+      <Box sx={{ mb: 3 }}>
+        <NLQueryBox />
+      </Box>
 
       {error && (
         <Alert severity="error" variant="outlined" sx={{ mb: 3 }}>

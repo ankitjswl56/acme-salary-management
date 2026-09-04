@@ -200,6 +200,23 @@ export interface QuarterlyPayroll {
   total_payroll_usd: number
 }
 
+// POST /analytics/ask - natural-language analytics query (backend
+// app/schemas/analytics.py NLQueryResponse). An LLM maps the question to one
+// of the 8 analytics views; it never writes SQL and there is no write path.
+// status "ok" carries the chosen `function`, the bounded `parameters` used,
+// and `data` (that view's normal output). status "out_of_scope" carries only
+// the fixed `message`. A model/config failure comes back as HTTP 503, not a
+// body with a third status.
+export interface NLQueryResponse {
+  status: 'ok' | 'out_of_scope'
+  question: string
+  function: string | null
+  parameters: Record<string, unknown> | null
+  data: unknown
+  message: string | null
+  notes: string[]
+}
+
 // GET /analytics/dashboard - every view the dashboard needs in one response
 // (backend/app/schemas/analytics.py AnalyticsDashboard). The three filterable
 // views carry their default-parameter result; the frontend re-hits the
