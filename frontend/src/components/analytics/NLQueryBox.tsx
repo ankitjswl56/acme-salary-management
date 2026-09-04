@@ -14,9 +14,11 @@ import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import { askAnalytics } from '../../api/analytics'
 import { ApiError } from '../../api/client'
 import type { NLQueryResponse } from '../../types/api'
+import { useChartTokens } from '../../theme'
 import { formatCell, inferColumns, titleCase } from './nlQueryFormat'
 
 const EXAMPLES = [
@@ -84,6 +86,7 @@ function ResultData({ data }: { data: unknown }) {
 // mapped the question to. It's a demonstration of the LLM-to-fixed-function
 // integration, not a chat surface — there's no history and no follow-ups.
 export function NLQueryBox() {
+  const tokens = useChartTokens()
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -111,12 +114,20 @@ export function NLQueryBox() {
   }
 
   return (
-    <Card>
+    <Card
+      sx={{
+        borderLeft: `3px solid ${tokens.seriesB}`,
+        bgcolor: 'action.hover',
+      }}
+    >
       <CardContent>
-        <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 700 }}>
-          Ask a question
-        </Typography>
-        <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <AutoAwesomeOutlinedIcon fontSize="small" sx={{ color: tokens.seriesB }} />
+          <Typography variant="subtitle2" component="h2" sx={{ fontWeight: 700 }}>
+            Ask a question
+          </Typography>
+        </Box>
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 1.5, mt: 0.25 }}>
           Plain English, mapped to one of the dashboard views on this page. Read-only — it can’t
           change any data.
         </Typography>
