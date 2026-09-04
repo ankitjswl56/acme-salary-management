@@ -186,3 +186,50 @@ diverges.
 "snapshots computed once" test); one dashboard request on load (two in dev
 under StrictMode); each filter change fires exactly one scoped request;
 dashboard renders identically.
+
+---
+
+## Phase 8 — natural-language analytics query (OpenRouter)
+
+**Ask:** build the stretch NL-query feature, in four reviewed steps (config
+allowlist → mapping service → endpoint → minimal frontend), stopping at each
+for review, and surface any real friction (account issues, model
+availability, unreliable function-selection) rather than pushing through.
+
+**Design accepted as proposed:** function-selection via a fixed registry
+(model returns `{"function", "parameters"}` JSON, backend runs the real
+`app/services/analytics.py` function), no write path and no model-generated
+SQL by construction, server-side parameter bounding to the REST endpoints'
+limits, and the OpenRouter call as a single injected seam so the test suite
+never hits the network. HTTP mapping: `ok`/`out_of_scope` → 200, model
+failure → 503 without forwarding upstream error text.
+
+**Corrected against the plan — the CLAUDE.md example model is dead.** The
+planning docs name `meta-llama/llama-3.1-8b-instruct:free` as the allowlist
+example. Checking `https://openrouter.ai/api/v1/models` directly (the
+summarising web fetch gave inconsistent, partly hallucinated lists — had to
+pull the raw JSON and filter it) showed OpenRouter delisted the entire free
+Meta Llama tier around Aug 2026. Picked three currently-live `:free` models
+that expose `response_format`, and added a test that the stale ID is
+*rejected* by the allowlist, so it can't be copy-pasted back.
+
+**Friction surfaced, then resolved:** the live smoke test returned HTTP 429
+on every call for two of the three allowlisted models — "rate-limited
+upstream", a shared free pool, not an account problem (`/auth/key` showed a
+clean free-tier key). `nvidia/nemotron-3-super-120b-a12b:free` was
+reachable and selected the right function + params on every probe
+(including refusing "give everyone a 10% raise" as out-of-scope), so it
+became the default. Added a single retry-on-429 with backoff, and raised
+`max_tokens` to 600 because that model emits reasoning tokens before the
+JSON object.
+
+**Corrected during build:** MUI v9's `TextField` dropped the `inputProps`
+prop — moved `maxLength` / `aria-label` to `slotProps.htmlInput` (caught by
+typecheck). Renamed `_default_model_caller` → `default_model_caller` when it
+became the DI-injected production seam rather than a private helper.
+
+**Verified:** 179 backend tests green (47 new: allowlist guard, selection/
+dispatch/coercion, out-of-scope paths, the endpoint's RBAC + error mapping,
+the retry). End-to-end against the real 10k-seed DB and live OpenRouter as
+hr_manager — "average salary by country" renders the real `salary_by_country`
+table, "what's the weather" returns the fixed refusal, zero console errors.

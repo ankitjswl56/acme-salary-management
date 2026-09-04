@@ -427,3 +427,73 @@ The fix, in order of impact:
 seed). A short-TTL cache would have added a staleness window after a write —
 during a demo a reviewer who adds an employee and reloads would see stale
 aggregates — for a gain that no longer mattered.
+
+## NL analytics query: the model selects a function, it never touches data
+
+Phase 8. `POST /analytics/ask` takes a plain-English question and returns
+one of the 8 analytics views. The design constraint that drove everything
+else: **the LLM has no write path and never generates SQL.** It picks a
+function name + typed parameters from a fixed registry
+(`app/services/nl_query.py` `FUNCTION_SPECS`); the backend then calls the
+same, already-tested `app/services/analytics.py` function the REST endpoints
+and the dashboard use. No query logic is duplicated, and the model's only
+influence on the database is *which* of 8 read queries runs and with what
+bounded arguments.
+
+Why not let the model generate a query, or expose write actions:
+compensation changes (raises, promotions, corrections, new employees) are
+deliberate decisions with an audit trail — they stay in explicit,
+human-confirmed UI forms. Interpreting "give the Berlin team a raise" from a
+sentence is exactly the wrong place for ambiguity. So the NL feature is
+read-only by construction, not by policy: there is no code path from it to a
+mutation, and a write-flavoured question (`"give everyone 10%"`) resolves to
+the same fixed out-of-scope reply as `"what's the weather"`.
+
+Other decisions:
+
+- **Function-selection, not tool-calling.** The model is asked for a plain
+  JSON object `{"function": ..., "parameters": {...}}` via
+  `response_format: json_object`, not OpenRouter's tool API. Simpler to
+  parse and validate, and it keeps the allowlisted-model requirement (see
+  below) unentangled from per-model tool-schema quirks. A reply that isn't
+  that shape, or names nothing in the registry, is treated as out-of-scope.
+- **Parameters are bounded server-side.** The model's `months`, `limit`,
+  `quarters`, `change_type` are coerced and clamped to the *same* ranges the
+  REST endpoints enforce (`app/routers/analytics.py` `Query(ge=, le=)`), with
+  a human-readable note when a value is adjusted. A bad value degrades to the
+  default; it never reaches a query function unchecked.
+- **The OpenRouter call is one injectable seam.** `default_model_caller` is
+  the only function that does I/O; `run_nl_query` takes it as a parameter and
+  the endpoint supplies it through a FastAPI dependency. Every test passes a
+  canned caller — the suite makes no network calls.
+- **HTTP mapping.** `ok` / `out_of_scope` → 200 (out-of-scope carries the
+  fixed message and null data — it's a valid answer, not an error). Model
+  unreachable or unconfigured → 503 with a generic message; the upstream
+  error text is not forwarded to the client.
+
+## OpenRouter model allowlist is a hardcoded code-level guard
+
+`app/openrouter.py` holds a `frozenset` of permitted model IDs, all
+free-tier (`:free`), and `resolve_openrouter_model()` is the only place a
+model ID is chosen — it returns the hardcoded default or a value it has just
+checked against the set, otherwise raises. This is deliberately **not** a
+Settings field: OpenRouter's free-vs-paid routing has silently run accounts
+into a negative balance before, so the rule is that the set of callable
+models can only change via a commit to this file, never via an env var,
+config, or request payload. Import-time asserts fail the process if the
+default drifts off the list or a non-`:free` ID is added.
+
+The allowlist was checked against `https://openrouter.ai/api/v1/models` on
+2026-09-04. Two findings worth recording:
+
+- The `meta-llama/llama-3.1-8b-instruct:free` ID cited as the example in
+  `CLAUDE.md` / `requirements.md` **no longer resolves** — OpenRouter
+  delisted the free Meta Llama tier upstream around Aug 2026. A test
+  (`test_openrouter_config.py`) guards against it being pasted back.
+- The free tier shares one upstream pool across all OpenRouter users, so any
+  free model 429s intermittently regardless of your own usage. During the
+  smoke test two of three allowlisted models were rate-limited and
+  `nvidia/nemotron-3-super-120b-a12b:free` was not — it's the current
+  default. `default_model_caller` retries once on a 429 with a short backoff
+  before giving up. `max_tokens` is 600, not ~300, because that model spends
+  completion tokens on reasoning before it emits the JSON object.

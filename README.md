@@ -86,11 +86,42 @@ See [`.env.example`](.env.example) for the full list. Key ones:
 |---|---|
 | `DATABASE_PATH` | Path to the SQLite database file |
 | `JWT_SECRET` | Secret used to sign auth tokens |
-| `OPENROUTER_API_KEY` | Required only for the stretch NL-query feature |
+| `OPENROUTER_API_KEY` | Required only for the stretch NL-query feature (see below). Leave blank and the feature is simply disabled — the rest of the app is unaffected. |
 | `CORS_ORIGINS` | Comma-separated list of allowed frontend origins |
 | `VITE_API_URL` | Backend URL the frontend calls |
 
 `.env` is gitignored — never commit real secrets.
+
+Under Docker Compose the backend reads these from the repo-root `.env`
+(Compose passes them through). Running the backend **locally** from
+`backend/`, pydantic-settings looks for `backend/.env` — so for the NL-query
+feature outside Docker, either put `OPENROUTER_API_KEY` in `backend/.env` or
+`export` it in the shell before starting uvicorn.
+
+## Natural-language analytics query (stretch feature)
+
+`POST /analytics/ask` with `{"question": "average salary by country"}`. An
+LLM (via OpenRouter) maps the plain-English question to **one of the 8
+predefined analytics functions plus typed parameters** — it never writes
+SQL, never touches the database, and has no write path: a request like
+"give everyone a raise" comes back as a polite "I can only answer questions
+about salary data". The backend then runs the real, already-tested
+analytics function and returns its output. Same access rule as the rest of
+`/analytics` (any authenticated role).
+
+Guardrails:
+
+- **Model allowlist.** `backend/app/openrouter.py` hardcodes a small
+  frozenset of permitted free-tier model IDs. Any model not on the list is
+  rejected in code — there is no env var or request field that can widen
+  it. (OpenRouter's free tier shares an upstream pool and rate-limits
+  intermittently; the caller retries once, then returns HTTP 503.)
+- **Fixed function set.** If the model's reply doesn't name one of the 8
+  functions, the user gets the fixed refusal above — the model never
+  answers freeform.
+- **No key → disabled, not broken.** With `OPENROUTER_API_KEY` unset the
+  endpoint returns 503 and the dashboard's "Ask a question" box shows an
+  unavailable message; nothing else is affected.
 
 ## Seed script
 

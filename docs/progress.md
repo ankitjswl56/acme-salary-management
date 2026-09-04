@@ -5,10 +5,9 @@ conversation history. Read this, `CLAUDE.md`, and `docs/requirements.md`
 before doing anything else — this file assumes both. `docs/design-notes.md`
 and `docs/ai-log.md` carry the "why" behind the decisions summarized here.
 
-**Status as of this checkpoint**: Phases 0–7 of `CLAUDE.md`'s build plan are
-complete and committed. Phase 8 (stretch — NL analytics query via OpenRouter)
-is next; per `CLAUDE.md` it is build-only-if-time-allows, and we are choosing
-to attempt it before the Phase 9 polish pass.
+**Status as of this checkpoint**: Phases 0–8 of `CLAUDE.md`'s build plan are
+complete and committed, including the stretch NL-analytics-query feature.
+Only Phase 9 (polish) remains.
 
 ## Phase-by-phase status
 
@@ -23,9 +22,9 @@ to attempt it before the Phase 9 polish pass.
 | — | JS→TS migration (not in original plan, done ahead of Phase 6 UI work per user request) | ✅ done | `9604626` |
 | 6 | Frontend: employee list/detail/forms, bulk raise, CSV import | ✅ done | `6ac8566` → `4e796ec` |
 | — | Auto-seed DB on first startup (zero-step reviewer setup) | ✅ done | `55924ef` |
-| 7 | Frontend: analytics dashboard (8 views, role-gated) | ✅ **done** | `be68bbb` → `5416fd9` (see below) |
-| 8 | Stretch: NL query via OpenRouter | ⬜ **not started — next up** (attempting it; guardrails in `CLAUDE.md`) | — |
-| 9 | Polish (README/docs pass, fresh `docker compose down -v && up`, demo video) | ⬜ not started | — |
+| 7 | Frontend: analytics dashboard (8 views, role-gated) | ✅ done | `be68bbb` → `5416fd9` (see below) |
+| 8 | Stretch: NL query via OpenRouter | ✅ **done** | `630c7fc` → `81b2e3d` (see below) |
+| 9 | Polish (README/docs pass, fresh `docker compose down -v && up`, demo video) | ⬜ **not started — next up** | — |
 
 Phase 7 commits in order: `be68bbb` (add MUI) → `421fdb0` (add
 `@mui/x-charts`) → `db3ecc1` (analytics API types + client wrappers) →
@@ -38,52 +37,86 @@ service) → `f0ddf56` (`GET /analytics/dashboard`) → `2e8709d` (`getDashboard
 wrapper + `AnalyticsDashboard` type) → `af2bbd1` (page fetches once, cards
 render from props) → `5416fd9` (docs: perf decisions).
 
-Backend: **130 pytest tests, all passing** (`cd backend && .venv/bin/python
+Phase 8 commits in order: `630c7fc` (OpenRouter model allowlist guard) →
+`15d08b6` (`nl_query.py` — question → one of the 8 analytics functions) →
+`7b6c3c1` (`POST /analytics/ask` endpoint) → `a987600` (chore: ignore
+`*.db-wal`/`*.db-shm`) → `81b2e3d` (frontend "Ask a question" box on the
+dashboard). Docs for Phase 8 land in the same commit as this checkpoint.
+
+Backend: **179 pytest tests, all passing** (`cd backend && .venv/bin/python
 -m pytest -q` — the venv is at `backend/.venv`). Frontend: `npx tsc
 --noEmit` is clean; no automated test suite exists (see Known Gaps).
 
 ## Exact next action
 
-Start Phase 8 — the stretch NL analytics query — **only after** re-reading
-`CLAUDE.md`'s "Stretch feature" and "OpenRouter guardrails" sections in full.
-Non-negotiable constraints from that doc:
+Phase 9 — polish. Nothing functional remains. In rough order:
 
-- **Read-only, analytics only. No write path, ever.** The LLM maps a plain-
-  English question to **one of the 8 predefined analytics functions** plus
-  typed params (function-calling / structured-output style). It never
-  generates SQL, never touches the DB, and cannot trigger a write.
-- **Hardcoded free-tier model allowlist** in backend config (e.g.
-  `meta-llama/llama-3.1-8b-instruct:free`). Reject/refuse any model not on
-  the list — never pass through an auto-selected or user-selected model.
-  This guard exists because free-vs-paid routing has caused negative account
-  balances before.
-- If the model's function selection doesn't match one of the 8, return a
-  polite "I can only answer questions about salary data" — no freeform
-  answers.
-- `OPENROUTER_API_KEY` lives in `.env` at the repo root (already present,
-  gitignored, never committed). Document the env var in `README.md`.
-- Add a `docs/design-notes.md` entry stating the "no NL write path, ever"
-  reasoning, and an `docs/ai-log.md` entry for the feature.
+1. **Fresh-environment validation.** `docker compose down -v && docker
+   compose up --build` from clean, confirm first-boot auto-seed works, log
+   in as each of the 3 demo roles, click through employees + dashboard +
+   the "Ask a question" box. `--build` is required (httpx is a new runtime
+   dep since Phase 8 — a plain `up` keeps the stale image).
+2. **`OPENROUTER_API_KEY` in the compose env.** It's already wired through
+   `docker-compose.yml` from the repo-root `.env`; just confirm the demo
+   `.env` the reviewer copies from `.env.example` leaves it blank and the
+   app degrades gracefully (503 + "unavailable" box, nothing else affected).
+3. **README / requirements.md consistency pass** against the finished
+   Phase 0–8 feature set. README already has a Phase 8 section and the
+   local-dev `backend/.env` caveat.
+4. **Demo video.**
+5. Decide whether the lack of a frontend test suite is worth addressing
+   (see Known Gaps) — it's the one real hole against "meaningful tests".
 
-The 8 service functions to wire into live in `backend/app/services/analytics.py`
-(`avg_median_salary_by_country`, `avg_median_salary_by_department`,
-`headcount_and_payroll_by_country`, `salary_distribution`,
-`gender_ratio`, `avg_salary_by_gender`, `recent_salary_changes`,
-`payroll_trend_by_quarter` — confirm exact names before referencing). These
-are the same functions `GET /analytics/dashboard` and the 8 per-view
-endpoints already call — **do not duplicate the query logic.**
+Do **not** start retrofitting Phases 1–6 to MUI or adding features — Phase 9
+is validation and docs only.
 
-Suggested first checkpoint: backend config with the model allowlist + an
-`app/services/nl_query.py` that does the OpenRouter call and function
-dispatch, with tests that mock the OpenRouter HTTP call (no real network in
-tests, per testing philosophy) and cover: valid function selection, an
-unknown function name → polite refusal, and a non-allowlisted model →
-rejected. Then a thin `POST /analytics/nl-query` endpoint, then a minimal
-frontend input on the analytics page.
+## Phase 8 — how the NL query is wired (read before touching it)
 
-If we decide mid-way that Phase 8 isn't landing cleanly in the time left,
-stop and switch to Phase 9 (polish) — a solid Phases 0–7 with no stretch
-feature is explicitly the acceptable outcome per `CLAUDE.md`.
+**Path:** `frontend` "Ask a question" box (`NLQueryBox.tsx`) →
+`askAnalytics()` → `POST /analytics/ask` → `router.ask` → `nl_query.run_nl_query`.
+
+- **`backend/app/openrouter.py`** — the hardcoded model allowlist
+  (`frozenset`, free-tier only) + `resolve_openrouter_model()`. **Not** a
+  Settings field on purpose: no env var / config / request can widen the set
+  of callable models. Import-time asserts enforce "default is on the list"
+  and "every entry is `:free`". Current default:
+  `nvidia/nemotron-3-super-120b-a12b:free` (the other two allowlisted models
+  were upstream-429ing during the build — free tier is a shared pool). The
+  `meta-llama/...:free` id from `CLAUDE.md` is **dead** (delisted Aug 2026)
+  and a test guards against re-adding it.
+- **`backend/app/services/nl_query.py`** — `FUNCTION_SPECS` is the fixed
+  registry of the 8 analytics functions with typed param specs; each
+  `runner` calls the real `app/services/analytics.py` function (no query
+  logic duplicated). `run_nl_query(session, question, *, model_caller=None)`:
+  asks the model for `{"function", "parameters"}` JSON, parses it (strips
+  ``` fences), and if it names nothing in the registry / isn't that shape →
+  fixed `OUT_OF_SCOPE_MESSAGE`. Params are coerced + clamped to the REST
+  endpoints' bounds with human-readable `notes`. **There is no code path
+  from here to a write** — a "give everyone a raise" question resolves to
+  out_of_scope like any other non-analytics question.
+- **The OpenRouter HTTP call is `default_model_caller`** — the only I/O
+  function. `run_nl_query` takes it as a param; the endpoint injects it via
+  the `get_model_caller` FastAPI dependency. **Every test overrides it with
+  a canned function — the suite makes no network calls.** It retries once on
+  a 429 (shared-pool rate limiting), `max_tokens=600` (the default model
+  emits reasoning tokens before the JSON).
+- **`POST /analytics/ask`** is on the existing `/analytics` router, so it
+  inherits `dependencies=[Depends(get_current_user)]` — any authenticated
+  role, same as the rest of analytics. `NLQueryRequest` rejects blank /
+  >500-char questions → 422. `run_nl_query` result maps: `ok` /
+  `out_of_scope` → 200; `error` (model unreachable / `OPENROUTER_API_KEY`
+  unset) → 503 with a generic message (upstream error text not forwarded).
+- **Frontend** (`NLQueryBox.tsx`, rendered near the top of `AnalyticsPage`):
+  input + Ask + example chips. `ok` → function chip + param chips + notes +
+  a generic table (columns inferred from rows, USD applied to
+  salary/payroll columns); `out_of_scope` → info alert; `ApiError` → error
+  alert (friendlier text for 503). No history, no follow-ups — it's a demo
+  of the integration, not a chat UI.
+- **Local dev caveat:** `settings.openrouter_api_key` resolves from
+  `backend/.env` when running uvicorn from `backend/` (pydantic-settings
+  `env_file=".env"`), **not** the repo-root `.env`. Docker Compose passes it
+  through from the root `.env`. With no key the feature is disabled (503),
+  nothing else affected.
 
 ## Phase 7 — how the dashboard is wired (read before touching analytics code)
 
@@ -108,7 +141,7 @@ diverges. Don't "simplify" this back.
 
 **The 8 per-view endpoints still exist** (`/analytics/salary-by-country`
 etc.) and are still tested — they serve the filter-driven refetches above,
-and Phase 8's NL-query feature will target the underlying service functions.
+and Phase 8's NL-query feature calls the same underlying service functions.
 `dashboard_summary()` in `backend/app/services/analytics.py` computes
 `get_current_salary_snapshots()` **once** and threads it into the 5 current-
 state views (they each take an optional trailing `snapshots=` param), then
@@ -261,11 +294,18 @@ for drift and "corrected" back.
 
 ## Known gaps / deferred items
 
-- **Phase 8 (stretch NL query) not started** — see Exact Next Action. This
-  is the immediate next task; may be dropped for Phase 9 if time is short.
-- **No automated frontend test suite.** Backend has 130 pytest tests;
+- **NL query depends on OpenRouter's free pool.** The default model can 429
+  intermittently (shared upstream pool, unrelated to our usage); one retry
+  is built in, then it's a 503 + "unavailable" box. If it's flaky during a
+  demo, swap `OPENROUTER_DEFAULT_MODEL` in `backend/app/openrouter.py` to
+  another allowlisted id (all are re-checked against the live model list —
+  the list rotates, so re-verify before relying on it). Real network
+  behaviour is only covered by a manual smoke test, never the suite.
+- **NL query has no rate limiting / cost ceiling of its own.** Fine for a
+  free-tier demo; a real deployment would want a per-user throttle.
+- **No automated frontend test suite.** Backend has 179 pytest tests;
   frontend has zero committed test files and only `tsc --noEmit` for
-  safety. All Phase 6–7 UI verification was ad-hoc Playwright scripts run
+  safety. All Phase 6–8 UI verification was ad-hoc Playwright scripts run
   manually and discarded. If "meaningful tests" grading extends to the
   frontend, this is a real gap worth raising rather than assuming it's fine.
 - **No response cache on `/analytics/dashboard`.** Deliberate — after the
@@ -277,6 +317,6 @@ for drift and "corrected" back.
 - **Bulk raise / CSV import have no undo mechanism** — by design (append-
   only model), but worth knowing if asked.
 - **Phase 9 polish not started**: no recent fresh `docker compose down -v &&
-  up` full validation pass, no demo video, and `README.md` /
-  `docs/requirements.md` haven't had a final consistency pass against the
-  finished Phase 0–7 feature set.
+  up` full validation pass, no demo video, and `docs/requirements.md` hasn't
+  had a final consistency pass against the finished Phase 0–8 feature set
+  (README has, through Phase 8).
