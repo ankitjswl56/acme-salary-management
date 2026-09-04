@@ -1,9 +1,27 @@
 // Mirrors backend/app/schemas/employee.py and backend/app/models/enums.py.
 // Keep in sync by hand — no shared codegen between the two yet.
 
+import type { UserRole } from '../auth/types'
+
+export type { UserRole }
+
 export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say'
 
 export type EmployeeStatus = 'active' | 'inactive'
+
+// --- Users (admin-only management; backend/app/schemas/user.py) ---
+
+export interface AdminUser {
+  id: number
+  email: string
+  role: UserRole
+}
+
+export interface AdminUserCreate {
+  email: string
+  password: string
+  role: UserRole
+}
 
 // ChangeType.raise_'s wire value is "raise" (see enums.py's enum_column
 // comment) - the Python member name differs from the value on the backend,

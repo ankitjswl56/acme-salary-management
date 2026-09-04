@@ -26,6 +26,11 @@ export function Layout() {
           <NavLink to="/analytics" className={navLinkClassName}>
             Analytics
           </NavLink>
+          {auth.role === 'admin' && (
+            <NavLink to="/users" className={navLinkClassName}>
+              Users
+            </NavLink>
+          )}
         </nav>
         <div className="app-user">
           <span>

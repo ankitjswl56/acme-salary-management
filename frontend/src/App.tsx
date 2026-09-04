@@ -15,6 +15,7 @@ import { EmployeeEditPage } from './pages/EmployeeEditPage'
 import { EmployeesPage } from './pages/EmployeesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { UsersPage } from './pages/UsersPage'
 
 function AppRoutes() {
   const { auth } = useAuth()
@@ -35,6 +36,9 @@ function AppRoutes() {
             <Route path="/employees/:id/edit" element={<EmployeeEditPage />} />
           </Route>
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="/users" element={<UsersPage />} />
+          </Route>
         </Route>
       </Route>
 
