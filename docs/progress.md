@@ -7,7 +7,10 @@ and `docs/ai-log.md` carry the "why" behind the decisions summarized here.
 
 **Status as of this checkpoint**: Phases 0–8 of `CLAUDE.md`'s build plan are
 complete and committed, including the stretch NL-analytics-query feature.
-Only Phase 9 (polish) remains.
+Phase 9 (polish) is nearly done — fresh-rebuild validation, RBAC walk-through,
+graceful-degradation check, README pass, and a first frontend test suite are
+all done. **Only the demo video and a final human review of the whole thing
+remain.**
 
 ## Phase-by-phase status
 
@@ -23,8 +26,8 @@ Only Phase 9 (polish) remains.
 | 6 | Frontend: employee list/detail/forms, bulk raise, CSV import | ✅ done | `6ac8566` → `4e796ec` |
 | — | Auto-seed DB on first startup (zero-step reviewer setup) | ✅ done | `55924ef` |
 | 7 | Frontend: analytics dashboard (8 views, role-gated) | ✅ done | `be68bbb` → `5416fd9` (see below) |
-| 8 | Stretch: NL query via OpenRouter | ✅ **done** | `630c7fc` → `81b2e3d` (see below) |
-| 9 | Polish (README/docs pass, fresh `docker compose down -v && up`, demo video) | ⬜ **not started — next up** | — |
+| 8 | Stretch: NL query via OpenRouter | ✅ done | `630c7fc` → `81b2e3d` (see below) |
+| 9 | Polish (README/docs pass, fresh rebuild, frontend tests, demo video) | 🟡 **mostly done** — demo video + final review left | `8d9381b`, `17b4285` |
 
 Phase 7 commits in order: `be68bbb` (add MUI) → `421fdb0` (add
 `@mui/x-charts`) → `db3ecc1` (analytics API types + client wrappers) →
@@ -50,26 +53,37 @@ the Phase 8 NL-query box; the rest of the UI is `tsc`-only (see Known Gaps).
 
 ## Exact next action
 
-Phase 9 — polish. Nothing functional remains. In rough order:
+Phase 9 — polish. Almost everything is done; what's left needs a human:
 
-1. **Fresh-environment validation.** `docker compose down -v && docker
-   compose up --build` from clean, confirm first-boot auto-seed works, log
-   in as each of the 3 demo roles, click through employees + dashboard +
-   the "Ask a question" box. `--build` is required (httpx is a new runtime
-   dep since Phase 8 — a plain `up` keeps the stale image).
-2. **`OPENROUTER_API_KEY` in the compose env.** It's already wired through
-   `docker-compose.yml` from the repo-root `.env`; just confirm the demo
-   `.env` the reviewer copies from `.env.example` leaves it blank and the
-   app degrades gracefully (503 + "unavailable" box, nothing else affected).
-3. **README / requirements.md consistency pass** against the finished
-   Phase 0–8 feature set. README already has a Phase 8 section and the
-   local-dev `backend/.env` caveat.
-4. **Demo video.**
-5. Decide whether the lack of a frontend test suite is worth addressing
-   (see Known Gaps) — it's the one real hole against "meaningful tests".
+1. **Record the demo video.** Suggested flow: `docker compose up --build`
+   from clean → land as each of the 3 roles (admin/hr → `/employees`,s exec →
+   `/analytics`, exec blocked from `/employees`) → dashboard walk-through →
+   the "Ask a question" box (a real question + a write-flavoured one that
+   refuses).
+2. **Final read-through** of `README.md` and `docs/requirements.md` with
+   fresh eyes for anything stale against the shipped Phase 0–8 feature set.
+   (Per CLAUDE.md, `requirements.md` is reference-only — don't rewrite it;
+   the one known wording gap, "answer in natural language", is deliberately
+   documented in `docs/design-notes.md` instead.)
 
-Do **not** start retrofitting Phases 1–6 to MUI or adding features — Phase 9
-is validation and docs only.
+Already done this phase (commits `8d9381b`, `17b4285`, plus verification
+runs that produced no code changes):
+
+- `docker compose down -v && up --build` from clean — twice, incl. after the
+  frontend test deps landed. First-boot auto-seed → 10,000 employees;
+  dashboard total $637.5M; all 3 roles' login + routing + RBAC redirects
+  confirmed in a browser; NL query works end-to-end through Docker (a
+  transient OpenRouter 429 → 503 was seen once — the documented free-pool
+  behaviour, recovered on retry).
+- Graceful-degradation check: backend restarted with a blank
+  `OPENROUTER_API_KEY` → `POST /analytics/ask` returns 503, everything else
+  200.
+- README: test section now lists both suites; the Phase 8 section + the
+  local-dev `backend/.env` caveat were already added in `37e1316`.
+- Frontend test suite added (see the test-count line above and Known Gaps).
+
+Do **not** retrofit Phases 1–6 to MUI or add features — Phase 9 is
+validation and docs only.
 
 ## Phase 8 — how the NL query is wired (read before touching it)
 
