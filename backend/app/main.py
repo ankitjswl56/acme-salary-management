@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db
-from app.routers import analytics, auth, employees, health, reference, salary_records
+from app.routers import analytics, auth, employees, health, reference, salary_records, users
 from app.seed.run import seed_if_empty
 
 
@@ -34,3 +34,4 @@ app.include_router(employees.router)
 app.include_router(salary_records.router)
 app.include_router(reference.router)
 app.include_router(analytics.router)
+app.include_router(users.router)
