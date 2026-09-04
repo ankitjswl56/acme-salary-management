@@ -1,6 +1,7 @@
+from dataclasses import asdict
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.db import get_session
@@ -13,11 +14,14 @@ from app.schemas.analytics import (
     DepartmentSalaryStats,
     GenderHeadcount,
     GenderSalaryStats,
+    NLQueryRequest,
+    NLQueryResponse,
     QuarterlyPayroll,
     SalaryChangeFeedItem,
     SalaryDistributionBand,
 )
 from app.services import analytics as analytics_service
+from app.services import nl_query as nl_query_service
 
 # All three roles (admin, hr_manager, executive_viewer) can view analytics -
 # it's the aggregate-only view executive_viewer is scoped to. So gating here
@@ -31,6 +35,33 @@ def dashboard(session: Session = Depends(get_session)):
     stay for the frontend's filter-driven refetches and the stretch
     NL-query feature."""
     return AnalyticsDashboard(**analytics_service.dashboard_summary(session))
+
+
+def get_model_caller() -> nl_query_service.ModelCaller:
+    """The OpenRouter caller the NL-query endpoint uses. Injected as a
+    dependency so tests can override it with a canned function and never
+    touch the network."""
+    return nl_query_service.default_model_caller
+
+
+@router.post("/ask", response_model=NLQueryResponse)
+def ask(
+    payload: NLQueryRequest,
+    session: Session = Depends(get_session),
+    model_caller: nl_query_service.ModelCaller = Depends(get_model_caller),
+):
+    """Natural-language analytics query. Read-only: the model only selects
+    one of the 8 predefined analytics functions + typed params — it never
+    generates SQL and there is no write path here. Same access rule as the
+    rest of this router (any authenticated role, per Phase 5 RBAC)."""
+    result = nl_query_service.run_nl_query(session, payload.question, model_caller=model_caller)
+    if result.status == "error":
+        # Model unreachable or not configured — a service-availability problem,
+        # not a bad request. The polite in-scope refusal is status "ok"/"out_of_scope".
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=result.message
+        )
+    return NLQueryResponse(**asdict(result))
 
 
 @router.get("/salary-by-country", response_model=list[CountrySalaryStats])

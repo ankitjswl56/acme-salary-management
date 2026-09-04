@@ -1,6 +1,7 @@
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
+from pydantic import Field, field_validator
 from sqlmodel import SQLModel
 
 from app.models.enums import ChangeType
@@ -59,6 +60,43 @@ class QuarterlyPayroll(SQLModel):
     quarter: str
     headcount: int
     total_payroll_usd: float
+
+
+class NLQueryRequest(SQLModel):
+    """A plain-English analytics question. The LLM maps it to one of the 8
+    analytics functions — it never sees or writes SQL, and there is no write
+    path behind this endpoint."""
+
+    question: str = Field(min_length=1, max_length=500)
+
+    @field_validator("question")
+    @classmethod
+    def _reject_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("question must not be blank")
+        return stripped
+
+
+class NLQueryResponse(SQLModel):
+    """Result of a natural-language query.
+
+    status:
+      - "ok": `function` was selected and run; `data` holds its output and
+        `parameters` the (validated, bounded) arguments used.
+      - "out_of_scope": the model's reply named no known analytics function;
+        `message` is a fixed, polite refusal and `data` is null.
+    (An "error" outcome — model unreachable / not configured — is returned as
+    HTTP 503, not in this body.)
+    """
+
+    status: str
+    question: str
+    function: Optional[str] = None
+    parameters: Optional[dict] = None
+    data: Any = None
+    message: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
 
 
 class AnalyticsDashboard(SQLModel):
