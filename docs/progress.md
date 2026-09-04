@@ -2,11 +2,13 @@
 
 Written to let a fresh session resume this project without the prior
 conversation history. Read this, `CLAUDE.md`, and `docs/requirements.md`
-before doing anything else — this file assumes both.
+before doing anything else — this file assumes both. `docs/design-notes.md`
+and `docs/ai-log.md` carry the "why" behind the decisions summarized here.
 
-**Status as of this checkpoint**: Phases 0–6 of `CLAUDE.md`'s build plan
-are complete and committed. Phase 7 (analytics dashboard frontend) is
-next and has not been started.
+**Status as of this checkpoint**: Phases 0–7 of `CLAUDE.md`'s build plan are
+complete and committed. Phase 8 (stretch — NL analytics query via OpenRouter)
+is next; per `CLAUDE.md` it is build-only-if-time-allows, and we are choosing
+to attempt it before the Phase 9 polish pass.
 
 ## Phase-by-phase status
 
@@ -19,223 +21,262 @@ next and has not been started.
 | 4 | Analytics endpoints (8 views) + tests | ✅ done | `9cf5dde`, `631a2a4`, `41cb680`, `8f116d1` |
 | 5 | Auth/RBAC (JWT login, role gating) | ✅ done | `3eebfe6`, `77fed69` |
 | — | JS→TS migration (not in original plan, done ahead of Phase 6 UI work per user request) | ✅ done | `9604626` |
-| 6 | Frontend: employee list/detail/forms, bulk raise, CSV import | ✅ done | `6ac8566` → `4e796ec` (see below) |
-| 7 | Frontend: analytics dashboard (8 views, role-gated) | ⬜ **not started — next up** | — |
-| 8 | Stretch: NL query via OpenRouter | ⬜ not started (build only if 0–7 solid, per CLAUDE.md) | — |
+| 6 | Frontend: employee list/detail/forms, bulk raise, CSV import | ✅ done | `6ac8566` → `4e796ec` |
+| — | Auto-seed DB on first startup (zero-step reviewer setup) | ✅ done | `55924ef` |
+| 7 | Frontend: analytics dashboard (8 views, role-gated) | ✅ **done** | `be68bbb` → `5416fd9` (see below) |
+| 8 | Stretch: NL query via OpenRouter | ⬜ **not started — next up** (attempting it; guardrails in `CLAUDE.md`) | — |
 | 9 | Polish (README/docs pass, fresh `docker compose down -v && up`, demo video) | ⬜ not started | — |
 
-Phase 6 commits in order: `6ac8566` (auth/routing foundation) →
-`8d04fc9` (employee list/detail) → `e7ae6c8` (employee create/edit forms)
-→ `181cc24` (salary-record form + promotion/hire fixes) → `155f473`
-(bulk raise) → `e741a89` (CSV import) → `4e796ec` (list ordering/
-pagination/URL-filter UX pass).
+Phase 7 commits in order: `be68bbb` (add MUI) → `421fdb0` (add
+`@mui/x-charts`) → `db3ecc1` (analytics API types + client wrappers) →
+`af94e63` (dashboard — 8 views, tiered comp-tool design) → then a
+load-performance pass: `2b0011e` (SQLite WAL/FK/temp-store pragmas) →
+`e3f716e` (`(employee_id, effective_date)` composite index) → `129f102`
+(snapshot views accept a precomputed list) → `84ede32` (payroll trend from
+one fetch, not one window query per quarter) → `71a479a` (`dashboard_summary`
+service) → `f0ddf56` (`GET /analytics/dashboard`) → `2e8709d` (`getDashboard`
+wrapper + `AnalyticsDashboard` type) → `af2bbd1` (page fetches once, cards
+render from props) → `5416fd9` (docs: perf decisions).
 
-Backend: **121 pytest tests, all passing.** Frontend: no automated test
-suite exists (see Known Gaps).
+Backend: **130 pytest tests, all passing** (`cd backend && .venv/bin/python
+-m pytest -q` — the venv is at `backend/.venv`). Frontend: `npx tsc
+--noEmit` is clean; no automated test suite exists (see Known Gaps).
 
 ## Exact next action
 
-Build out `frontend/src/pages/AnalyticsPage.tsx` — currently a one-line
-placeholder (`"Analytics dashboard — coming in Phase 7."`) — into the real
-8-view dashboard. All 8 backend endpoints already exist, are tested, and
-are role-gated to **any authenticated role** (admin, hr_manager,
-*and* executive_viewer — this is the one part of the app executive_viewer
-can actually reach; see `app/routers/analytics.py`'s router-level
-`dependencies=[Depends(get_current_user)]`, no specific role required).
+Start Phase 8 — the stretch NL analytics query — **only after** re-reading
+`CLAUDE.md`'s "Stretch feature" and "OpenRouter guardrails" sections in full.
+Non-negotiable constraints from that doc:
 
-The 8 endpoints (all under `/analytics`, all GET), with their response
-shapes (`app/schemas/analytics.py`):
+- **Read-only, analytics only. No write path, ever.** The LLM maps a plain-
+  English question to **one of the 8 predefined analytics functions** plus
+  typed params (function-calling / structured-output style). It never
+  generates SQL, never touches the DB, and cannot trigger a write.
+- **Hardcoded free-tier model allowlist** in backend config (e.g.
+  `meta-llama/llama-3.1-8b-instruct:free`). Reject/refuse any model not on
+  the list — never pass through an auto-selected or user-selected model.
+  This guard exists because free-vs-paid routing has caused negative account
+  balances before.
+- If the model's function selection doesn't match one of the 8, return a
+  polite "I can only answer questions about salary data" — no freeform
+  answers.
+- `OPENROUTER_API_KEY` lives in `.env` at the repo root (already present,
+  gitignored, never committed). Document the env var in `README.md`.
+- Add a `docs/design-notes.md` entry stating the "no NL write path, ever"
+  reasoning, and an `docs/ai-log.md` entry for the feature.
 
-1. `/salary-by-country` → `CountrySalaryStats[]` `{country, headcount, avg_salary_usd, median_salary_usd}`
-2. `/salary-by-department` → `DepartmentSalaryStats[]` `{department, headcount, avg_salary_usd, median_salary_usd}`
-3. `/headcount-payroll-by-country` → `CountryPayroll[]` `{country, headcount, total_payroll_usd}`
-4. `/salary-distribution` → `SalaryDistributionBand[]` `{band, headcount}` (8 fixed bands, `<$30k` … `$200k+`)
-5. `/gender-ratio?department=` → `GenderHeadcount[]` `{gender, headcount}` (always safe to show, it's a count)
-6. `/salary-by-gender?department=&role=&min_group_size=` → `GenderSalaryStats[]` `{gender, headcount, avg_salary_usd: number|null, suppressed: bool}` — **`avg_salary_usd` is `null` and `suppressed` is `true` whenever `headcount < min_group_size` (default 5) — the frontend must render that as a real suppressed state (e.g. "insufficient data"), not treat null as a bug or coerce it to 0**
-7. `/recent-changes?months=&change_type=&limit=` → `SalaryChangeFeedItem[]` `{employee_id, employee_name, department, country, change_type, effective_date, amount, currency, amount_usd}`
-8. `/payroll-trend?quarters=` → `QuarterlyPayroll[]` `{quarter, headcount, total_payroll_usd}` (e.g. `"2026-Q3"`, oldest first)
+The 8 service functions to wire into live in `backend/app/services/analytics.py`
+(`avg_median_salary_by_country`, `avg_median_salary_by_department`,
+`headcount_and_payroll_by_country`, `salary_distribution`,
+`gender_ratio`, `avg_salary_by_gender`, `recent_salary_changes`,
+`payroll_trend_by_quarter` — confirm exact names before referencing). These
+are the same functions `GET /analytics/dashboard` and the 8 per-view
+endpoints already call — **do not duplicate the query logic.**
 
-None of these 8 response types are in `frontend/src/types/api.ts` yet —
-add them there first, following the existing hand-mirrored pattern (see
-that file's own comment: "no shared codegen between the two yet").
-Likely also want a `src/api/analytics.ts` wrapper module (parallel to
-`src/api/employees.ts`) and a `src/dataviz` skill load before writing any
-chart code (project instructions mention a `dataviz` skill for exactly
-this — check the available-skills listing for the current session).
+Suggested first checkpoint: backend config with the model allowlist + an
+`app/services/nl_query.py` that does the OpenRouter call and function
+dispatch, with tests that mock the OpenRouter HTTP call (no real network in
+tests, per testing philosophy) and cover: valid function selection, an
+unknown function name → polite refusal, and a non-allowlisted model →
+rejected. Then a thin `POST /analytics/nl-query` endpoint, then a minimal
+frontend input on the analytics page.
 
-Suggested checkpoint breakdown (matching how every other phase in this
-session was paced — small, verified, user-confirmed commits, not one
-giant one): types + API wrappers first, then maybe 2–3 views per
-checkpoint, verifying each against the real seeded dataset in a browser
-before committing. `AnalyticsPage.tsx` should probably become a container
-that composes 8 smaller view components rather than one giant file.
+If we decide mid-way that Phase 8 isn't landing cleanly in the time left,
+stop and switch to Phase 9 (polish) — a solid Phases 0–7 with no stretch
+feature is explicitly the acceptable outcome per `CLAUDE.md`.
 
-## Non-obvious implementation details / gotchas already solved
+## Phase 7 — how the dashboard is wired (read before touching analytics code)
 
-Read this before touching related code — these were each a real bug or
-design trap already hit and fixed once; don't rediscover or accidentally
-revert them.
+**One request per page load.** `AnalyticsPage.tsx` calls
+`useDashboardData()` → `getDashboard()` → `GET /analytics/dashboard`, which
+returns an `AnalyticsDashboard` object with all 8 views' data plus `as_of`
+(see `frontend/src/types/api.ts`, mirrors `backend/app/schemas/analytics.py`).
+The page passes slices of that payload to each card as props. The 5 static
+cards (headline band, headcount/payroll by country, payroll trend, the two
+per-employee salary-comparison cards, distribution) are purely
+presentational — they never fetch.
+
+**The 3 filterable cards** (`GenderRepresentationCard`, `SalaryByGenderCard`,
+`RecentChangesCard`) take their default-parameter result from props
+(`initialData`) and only issue their own request — via the per-view wrappers
+in `frontend/src/api/analytics.ts` — when a filter moves off its default.
+Gotcha already solved: they can't render `data ?? initialData`, because
+`useAnalyticsQuery` keys its effect off `queryKey` only, so `data` stays
+`null` until a filter actually changes. They render `initialData` directly
+while filters are at defaults and switch to the hook's `data` once a filter
+diverges. Don't "simplify" this back.
+
+**The 8 per-view endpoints still exist** (`/analytics/salary-by-country`
+etc.) and are still tested — they serve the filter-driven refetches above,
+and Phase 8's NL-query feature will target the underlying service functions.
+`dashboard_summary()` in `backend/app/services/analytics.py` computes
+`get_current_salary_snapshots()` **once** and threads it into the 5 current-
+state views (they each take an optional trailing `snapshots=` param), then
+adds gender ratio, the recent-changes feed, and the payroll trend. Full
+rationale + the 13-window-query diagnosis in `docs/design-notes.md`
+("Analytics dashboard — load performance").
+
+**Charting**: `@mui/x-charts` v9 (`BarChart`, `LineChart`, `PieChart`),
+sharing the MUI theme. Every chart card ships a toggleable data table
+alongside it (visually-hidden `<caption>`, `<th scope>`) so figures are
+never chart-only. `ChartCard.tsx` is the shared shell (title, subtitle,
+optional computed insight line, chart/table toggle). Palette: bond-indigo
+`#3A4E9C` (primary/single series) + brass-gold `#BE8636` (median comparison
+series + headline underline); alarm-red `#B23B3B` reserved only for a QoQ
+payroll drop. Dark mode lightens the indigo to `#7C8EDC`. All hexes were run
+through the dataviz skill's palette validator. Full visual spec in
+`docs/design-notes.md` ("Analytics dashboard — visual design").
+
+**x-charts v9 API gotchas** (all hit during the build): `barLabel` is on the
+series object, not the chart; `categoryGapRatio`/`barGapRatio` are on the
+band-axis config, not the chart; `titleTypographyProps` on `CardHeader` is
+gone — use `slotProps`. First two are caught by typecheck; the third leaks
+to the DOM at runtime with no type error.
+
+**Role-gating** — three roles, all three can see the dashboard:
+
+- Backend: the `/analytics` router uses `dependencies=[Depends(get_current_user)]`
+  (any authenticated user), **not** `require_role([...])`. This is the one
+  surface `executive_viewer` is scoped to.
+- Frontend routing (`App.tsx`): `/analytics` sits under the plain
+  `<ProtectedRoute />` (logged-in only). The `/employees*` routes are the
+  ones wrapped in `<ProtectedRoute allowedRoles={['admin', 'hr_manager']} />`
+  — `executive_viewer` hitting them is redirected to `/`.
+- `HomePage` redirects admin/hr_manager → `/employees`, everyone else
+  (i.e. `executive_viewer`) → `/analytics`.
+- `Layout.tsx` nav hides the "Employees" link for `executive_viewer`; only
+  "Analytics" shows.
+
+**Type gotcha for gender views**: the API sends gender as
+`GenderLabel = Gender | 'unspecified'` — rows with no gender recorded are
+grouped by the backend under the literal `"unspecified"`, not `null`. And
+`GenderSalaryStats.avg_salary_usd` is `number | null`: it is `null` with
+`suppressed: true` whenever `headcount < min_group_size` (default 5). The
+frontend renders that as a labelled suppressed state (45° hatch swatch +
+"Withheld, fewer than N in group" — see `SuppressedNote.tsx`), never a zero
+bar, never dropped. Do not coerce the null to 0.
+
+## Non-obvious implementation details / gotchas from earlier phases
+
+Still current — read before touching related code. Each was a real bug or
+design trap already hit and fixed once; don't rediscover or revert them.
 
 - **SQLAlchemy's `Enum` type persists by member `.name`, not `.value`, by
-  default.** This silently broke `ChangeType.raise_` (member name
-  `raise_`, value `"raise"`, since `raise` is a Python keyword) — records
-  were saved with `change_type = "raise_"` instead of `"raise"`. Fixed via
-  `enum_column()` in `app/models/enums.py` (`values_callable`), applied to
-  *all four* enum columns for consistency, not just the one that broke.
-  **If you add any new enum-typed column anywhere, use `enum_column()`,
-  not a bare `Field()`.**
-- **"Current salary" is always derived, never stored** — the latest
-  `SalaryRecord` with `effective_date <= as_of` (default today). Single-
-  employee: `get_current_salary_record()` in `app/services/salary.py`.
-  Batch (used by all 6 "current state" analytics views, and by bulk
-  raise): `get_current_salary_snapshots()` in `app/services/analytics.py`,
-  a `ROW_NUMBER() OVER (PARTITION BY employee_id ...)` window query — not
-  N+1 per-employee lookups. A future-dated record must never be treated
-  as current until its date arrives; this is tested explicitly in
-  multiple places.
-- **`create_salary_record()` has two extra rules beyond "compute the USD
-  snapshot"**: (1) `effective_date` can't be before `Employee.hire_date`;
-  (2) `change_type = "hire"` is rejected if the employee already has *any*
-  `SalaryRecord` (of any type) — a second "hire" makes no sense and is
-  now blocked at the service layer, not just hidden in the UI dropdown.
+  default.** Broke `ChangeType.raise_` (name `raise_`, value `"raise"`).
+  Fixed via `enum_column()` in `app/models/enums.py` (`values_callable`),
+  applied to all four enum columns. **Any new enum-typed column must use
+  `enum_column()`, not a bare `Field()`.**
+- **"Current salary" is always derived, never stored** — latest
+  `SalaryRecord` with `effective_date <= as_of` (default today). Single:
+  `get_current_salary_record()` in `app/services/salary.py`. Batch (all 6
+  "current state" analytics views + bulk raise): `get_current_salary_snapshots()`
+  in `app/services/analytics.py`, a `ROW_NUMBER() OVER (PARTITION BY
+  employee_id ORDER BY effective_date DESC, id DESC)` window query — not
+  N+1. Future-dated records must never count as current; tested explicitly.
+- **`payroll_trend_by_quarter` no longer runs the window query per quarter**
+  (perf pass) — it fetches all salary records up to `as_of` once, then each
+  quarter's "current" record is a `bisect_right(...) - 1` into the per-
+  employee sorted list. A trend-equivalence test pins the output against
+  per-quarter `get_current_salary_snapshots` resolution. One behaviour
+  change: orphan salary rows (employee missing) used to be silently dropped
+  by an inner join; with `foreign_keys=ON` they can't exist.
+- **SQLite PRAGMAs on connect** (`app/db.py`): `journal_mode=WAL`,
+  `synchronous=NORMAL`, `temp_store=MEMORY`, `foreign_keys=ON`. Bound to the
+  app engine via a `connect` event; the in-memory test engine in
+  `conftest.py` is untouched. **An existing `backend/data` volume must be
+  recreated (`docker compose down -v`) to pick up the `(employee_id,
+  effective_date)` composite index added in the same pass.**
+- **`create_salary_record()` extra rules**: (1) `effective_date` can't
+  precede `Employee.hire_date`; (2) `change_type = "hire"` is rejected if
+  the employee already has *any* `SalaryRecord`. Enforced at the service
+  layer, not just the UI.
 - **`new_role` on `SalaryRecordCreate`** (optional): when set, updates
-  `Employee.role` in the *same commit* as the `SalaryRecord` — used for
-  promotions, so a title change can't be saved separately and forgotten.
-  Not restricted to `change_type == promotion` at the schema/service
-  level (backend stays generic); the frontend only shows the field when
-  `change_type = promotion`.
-- **Bulk raise** (`app/services/bulk.py`) — three deliberate restrictions,
-  all added after user review caught real problems (see
-  `docs/ai-log.md`'s "three corrections" entry): always active-employees-
-  only (no `status` parameter exists at all, confirmed a stray `status`
-  key in the request body is silently ignored); percentage must be
-  **strictly positive** (no bulk pay cuts — that would insert a "raise"
-  record with a *lower* amount, which is self-contradictory); applied to
-  each employee's **local currency** amount, not the USD snapshot (re-
-  normalizes via `normalize_to_usd()` after).
-- **CSV import** (`app/services/csv_import.py`) reuses
-  `create_employee()`/`create_salary_record()` per row rather than
-  reimplementing validation. Two *different* failure buckets in the
-  response: `errors` (row never produced an employee — bad required
-  field, duplicate email) vs `salary_warnings` (employee was created
-  fine, but the row's amount/currency failed validation). They're
-  different because `create_employee()` and `create_salary_record()`
-  each commit independently — by the time a salary error surfaces, the
-  employee is already durably committed, so there's nothing to roll back
-  even if both were reported as the same kind of failure. Reads the
-  upload as `utf-8-sig`, not `utf-8` (Excel BOM handling).
-- **`Employee.country` stores a reference-data *code*** (e.g. `"US"`),
-  not a display name. `GET /employees/filters` resolves each distinct
-  code to its full name via `app/reference_data.py`'s `COUNTRIES` list
-  (the same table the seed script draws from) for the country dropdown —
-  falls back to the code itself if not found. `department` values are
-  already human-readable strings, no such mapping needed there.
+  `Employee.role` in the *same commit* as the record — for promotions.
+  Backend stays generic (not restricted to `change_type == promotion`); the
+  frontend only shows the field for promotions.
+- **Bulk raise** (`app/services/bulk.py`): active-employees-only (no
+  `status` param exists at all); percentage must be **strictly positive**
+  (no bulk pay cuts); applied to each employee's **local currency** amount,
+  re-normalized via `normalize_to_usd()`.
+- **CSV import** (`app/services/csv_import.py`) reuses `create_employee()` /
+  `create_salary_record()` per row. Two failure buckets: `errors` (no
+  employee produced) vs `salary_warnings` (employee created, salary columns
+  failed) — they commit independently, so a salary failure can't roll back
+  the already-committed employee. Reads upload as `utf-8-sig` (Excel BOM).
+- **`Employee.country` stores a reference-data *code*** (e.g. `"US"`).
+  `GET /employees/filters` resolves codes to names via
+  `app/reference_data.py`'s `COUNTRIES`. `department` values are already
+  human-readable.
 - **`GET /reference/currencies`** exposes `SUPPORTED_CURRENCIES` from
-  `app/services/currency.py` for the salary-record currency dropdown —
-  same "source live from backend, don't hardcode a second copy" pattern
-  as `/employees/filters`, justified because currency *is* validated
-  against a real backend allowlist (unlike country/department, which are
-  just plain strings with no enum).
-- **Employee list ordering**: `Employee.id DESC` (most recently added
-  first). There's no `created_at` column on `Employee` (schema is
-  locked per `CLAUDE.md`) — `id` is used as a reliable proxy since it's
-  sequential on insert in this app's usage pattern.
+  `app/services/currency.py` for the currency dropdown (currency *is*
+  validated against a backend allowlist, unlike country/department).
+- **Employee list ordering**: `Employee.id DESC` (no `created_at` column;
+  schema locked; `id` is a sequential-on-insert proxy).
 - **Employee list filters/pagination live in the URL** (`useSearchParams`
-  in `EmployeesPage.tsx`), not local-only React state — survives a
-  browser refresh, and `Reset` is just `setSearchParams({})`. Search text
-  is debounced locally before being pushed into the URL (`replace: true`)
-  so typing doesn't spam history or fire a request per keystroke.
-- **Frontend API client** (`src/api/client.ts`): `apiFetch<T>()` accepts
-  either a JSON-serializable body or a `FormData` (file upload) body —
-  `FormData` is passed through as-is so the browser sets its own
-  multipart boundary; setting `Content-Type` manually for it would break
-  that. `extractErrorMessage()` handles both FastAPI's plain-string
-  `detail` (404/409/etc.) and the list-of-`{msg,...}` 422 validation-
-  error shape.
-- **Auth flow**: token/email/role stored in `localStorage` under key
-  `acme_salary_auth`. A 401 response anywhere clears that storage *and*
-  dispatches a `window` `'acme:unauthorized'` event; `AuthContext`
-  listens for that event to log out — decouples the plain-fetch API
-  client from React state without an extra library. `ProtectedRoute`
-  enforces both "must be logged in" and "must have role X" at the
-  *route* level (executive_viewer is blocked from `/employees*` routes
-  entirely, not just hidden from nav) — matches backend gating exactly.
-- **Docker Compose**: `node_modules`/the Python venv are baked into each
-  image at build time, **not** volume-mounted (only `frontend/src`,
-  `frontend/index.html`, and `backend/app` are mounted for hot-reload).
-  A dependency change (new npm/pip package) needs `docker compose up
-  --build`, not plain `up`, or it silently keeps using the stale image.
-  Documented in the README; this actually bit us once mid-session
-  (`react-router-dom` missing after a plain `up`).
-- **Demo password is `Password123!@#`** (the user changed this by hand
-  from what was originally seeded — see Manual Edits below). Already
-  correct in the README and `app/seed/users.py`; don't "fix" it back.
+  in `EmployeesPage.tsx`). Search text is debounced locally before being
+  pushed to the URL (`replace: true`).
+- **Frontend API client** (`src/api/client.ts`): `apiFetch<T>()` accepts a
+  JSON body or `FormData` (passed through as-is so the browser sets the
+  multipart boundary). `extractErrorMessage()` handles both FastAPI's
+  string `detail` and the 422 list-of-`{msg}` shape. A 401 anywhere clears
+  `localStorage` key `acme_salary_auth` and dispatches a `window`
+  `'acme:unauthorized'` event that `AuthContext` listens for.
+- **`ProtectedRoute`** enforces both "logged in" and "has role X" at the
+  route level — matches backend gating.
+- **Docker Compose**: `node_modules` / Python venv are baked into images at
+  build time, **not** volume-mounted (only `frontend/src`,
+  `frontend/index.html`, `backend/app` are mounted for hot-reload). A
+  dependency change needs `docker compose up --build`. This bit us once
+  (`react-router-dom` missing after a plain `up`); MUI + x-charts were each
+  added with a full rebuild.
+- **Demo password is `Password123!@#`** (user-changed by hand — see Manual
+  Edits). Correct in the README and `app/seed/users.py` already.
 - **Test fixtures** (`backend/tests/conftest.py`): `session` (in-memory
-  SQLite), `client` (TestClient **pre-authenticated as hr_manager** by
-  default — covers almost every existing test without each one attaching
-  its own token), `unauthenticated_client`, `make_token(role, email)`
-  (build a JWT for any role, for RBAC-boundary tests). Reuse these.
-- **Frontend browser verification pattern used all session**: no
-  `chromium-cli` available in this environment. Playwright was installed
-  ad-hoc into the scratchpad dir (`npm init -y && npm install
-  playwright@1.62.1`, browsers via `npx playwright install chromium`,
-  already done once — shouldn't need reinstalling) and driven via small
-  `.mjs` driver scripts per checkpoint, screenshotted, then torn down.
-  Consider suggesting `/run-skill-generator` to the user to make this a
-  reusable project skill — flagged as worth doing, never actually done.
-- **Seed script** (`python -m app.seed` from `backend/`, or `docker
-  compose exec backend python -m app.seed`) is safe to re-run — clears
-  and repopulates `Employee`/`SalaryRecord`/`User` each time, fixed
-  random seed (42) so the dataset is reproducible run to run.
+  SQLite), `client` (TestClient pre-authenticated as hr_manager),
+  `unauthenticated_client`, `make_token(role, email)`. Reuse these.
+- **Frontend browser verification**: no `chromium-cli` in this environment.
+  Playwright was installed ad-hoc into the scratchpad
+  (`playwright@1.62.1`, chromium browser) and driven via small `.mjs`
+  scripts per checkpoint, screenshotted, then torn down. Never committed.
+  Worth making a reusable project skill (`/run` or a skill generator) —
+  flagged repeatedly, never done.
+- **Seed script** (`python -m app.seed` from `backend/`, or `docker compose
+  exec backend python -m app.seed`) clears and repopulates
+  `Employee`/`SalaryRecord`/`User` each run, fixed random seed (42). Also
+  runs automatically on first startup against an empty DB (`seed_if_empty`
+  in the app lifespan) so a bare `docker compose up` gives the reviewer a
+  populated dashboard with no extra step.
 
 ## Manual edits the user made directly (not generated by Claude)
 
-Both already committed and reflected everywhere they need to be — noted
-here only so they aren't mistaken for accidental drift and "corrected"
-back in a future session.
+Both committed and reflected everywhere — noted only so they aren't mistaken
+for drift and "corrected" back.
 
-1. **`backend/app/seed/users.py`**: `DEMO_PASSWORD` — the user changed it
-   from `"Password123!"` (what Claude originally wrote) to
-   `"Password123!@#"`, mid-Phase-2, before the first commit that included
-   it. Current value is correct and already matches the README.
+1. **`backend/app/seed/users.py`**: `DEMO_PASSWORD` changed from
+   `"Password123!"` to `"Password123!@#"` mid-Phase-2. Matches the README.
 2. **`backend/app/models/enums.py`**: the inline comments on
-   `ChangeType.correction` and `ChangeType.cola` (explaining what each
-   means) were added by the user directly to the file, also mid-Phase-2,
-   before Claude's next edit to that file. Comments on `raise_` and
-   `promotion` were added later *by Claude* (Phase 6, commit `181cc24`)
-   to match the same style once the raise/promotion distinction became a
-   real discussion — see `docs/ai-log.md`'s "Phase 6 — raise vs.
-   promotion" entry.
+   `ChangeType.correction` and `ChangeType.cola` were added by the user
+   directly. Comments on `raise_` and `promotion` were added later by Claude
+   (Phase 6, `181cc24`) to match.
 
 ## Known gaps / deferred items
 
-- **No frontend for the 8 analytics views yet** — this is Phase 7, the
-  next action (see above). `AnalyticsPage.tsx` is currently a one-line
-  placeholder.
-- **No automated frontend test suite.** Backend has 121 pytest tests;
-  frontend has zero committed test files. All frontend verification this
-  session was done via ad-hoc Playwright driver scripts run manually and
-  discarded (scratchpad only, never committed) — real, but not
-  repeatable/CI-able. If "meaningful tests" grading extends to frontend,
-  this is a gap worth raising with the user rather than assuming it's
-  fine.
-- **CSV import has no file size / row count limit.** Documented as a
-  deliberate scope cut in `docs/design-notes.md` given this assessment's
-  scale, not a silent oversight — would need one for real production use.
-- **Stretch NL-query feature (Phase 8) not started.** Per `CLAUDE.md`,
-  build only if Phases 0–7 are solid, and only with the OpenRouter
-  guardrails already specified there (hardcoded free-tier model
-  allowlist, reject/refuse any other model, polite fallback when the
-  model's function-selection doesn't match one of the 8 analytics
-  functions). `.env` at the repo root already has a real
-  `OPENROUTER_API_KEY` (gitignored, never committed) ready for this.
-- **Phase 9 polish not started**: no fresh `docker compose down -v &&
-  up` validation pass done recently (though individual dependency-adding
-  checkpoints were each verified via a full rebuild — see the git log
-  for "docker compose down && up --build" mentions), no demo video, and
-  `README.md`/`docs/requirements.md` haven't had a final consistency
-  pass against the finished Phase 0–6 feature set.
-- **Bulk raise / CSV import have no undo mechanism** — by design,
-  consistent with the append-only philosophy (each write is just another
-  `SalaryRecord`/`Employee` row within the existing model), but worth
-  being aware of if asked about it — there's no "undo this batch" button.
+- **Phase 8 (stretch NL query) not started** — see Exact Next Action. This
+  is the immediate next task; may be dropped for Phase 9 if time is short.
+- **No automated frontend test suite.** Backend has 130 pytest tests;
+  frontend has zero committed test files and only `tsc --noEmit` for
+  safety. All Phase 6–7 UI verification was ad-hoc Playwright scripts run
+  manually and discarded. If "meaningful tests" grading extends to the
+  frontend, this is a real gap worth raising rather than assuming it's fine.
+- **No response cache on `/analytics/dashboard`.** Deliberate — after the
+  perf pass the endpoint is ~0.15s locally against the 10k seed, and a
+  short-TTL cache would add a post-write staleness window during a demo.
+  See `docs/design-notes.md`.
+- **CSV import has no file size / row count limit.** Documented scope cut in
+  `docs/design-notes.md`.
+- **Bulk raise / CSV import have no undo mechanism** — by design (append-
+  only model), but worth knowing if asked.
+- **Phase 9 polish not started**: no recent fresh `docker compose down -v &&
+  up` full validation pass, no demo video, and `README.md` /
+  `docs/requirements.md` haven't had a final consistency pass against the
+  finished Phase 0–7 feature set.
