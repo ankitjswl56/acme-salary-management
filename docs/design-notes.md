@@ -451,6 +451,18 @@ the same fixed out-of-scope reply as `"what's the weather"`.
 
 Other decisions:
 
+- **The response is the view's structured data, not a model-written
+  sentence.** `requirements.md` frames the stretch feature as returning "the
+  answer in natural language". What's built returns the selected analytics
+  function's normal output (rendered as a table on the dashboard), and the
+  model is used *only* to pick the function + parameters — there's no second
+  LLM call to phrase the result as prose. Deliberate: the model never
+  restates the numbers, so it can't get them subtly wrong, and the answer is
+  exactly what the same query returns everywhere else in the app. The chosen
+  function name and parameters are shown alongside the result, so the
+  mapping is legible. A prose-summary call would add cost, latency, and a
+  hallucination surface over figures that are already clear in a small
+  table.
 - **Function-selection, not tool-calling.** The model is asked for a plain
   JSON object `{"function": ..., "parameters": {...}}` via
   `response_format: json_object`, not OpenRouter's tool API. Simpler to
