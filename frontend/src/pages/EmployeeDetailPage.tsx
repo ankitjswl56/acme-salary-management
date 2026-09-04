@@ -87,7 +87,9 @@ export function EmployeeDetailPage() {
         <span className="muted">Hire date</span>
         <span>{employee.hire_date}</span>
         <span className="muted">Status</span>
-        <span>{employee.status}</span>
+        <span>
+          <span className={`status-badge ${employee.status}`}>{employee.status}</span>
+        </span>
       </div>
 
       <h2>Current salary</h2>

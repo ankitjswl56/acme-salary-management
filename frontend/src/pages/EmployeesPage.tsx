@@ -202,7 +202,12 @@ export function EmployeesPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
-        <button type="button" className="secondary" onClick={handleReset} disabled={!hasActiveFilters}>
+        <button
+          type="button"
+          className="secondary filter-reset"
+          onClick={handleReset}
+          disabled={!hasActiveFilters}
+        >
           Reset
         </button>
       </div>
@@ -234,7 +239,9 @@ export function EmployeesPage() {
                   <td>{employee.country}</td>
                   <td>{employee.department}</td>
                   <td>{employee.role}</td>
-                  <td>{employee.status}</td>
+                  <td>
+                    <span className={`status-badge ${employee.status}`}>{employee.status}</span>
+                  </td>
                 </tr>
               ))}
               {items.length === 0 && (

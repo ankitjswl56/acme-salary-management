@@ -229,6 +229,43 @@ th {
   min-width: 180px;
 }
 
+/* Reset picks up the accent once there's actually something to clear, so an
+   enabled Reset reads as clickable rather than just losing the disabled
+   dimming. */
+button.filter-reset:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Status pill: green = active, muted grey = inactive. Colour is backed by the
+   text label, never the only signal. */
+.status-badge {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  font-size: 0.82em;
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+}
+.status-badge.active {
+  color: #15803d;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+.status-badge.inactive {
+  color: var(--text-muted);
+  background: var(--bg);
+  border-color: var(--border);
+}
+@media (prefers-color-scheme: dark) {
+  .status-badge.active {
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.32);
+  }
+}
+
 .pagination {
   display: flex;
   align-items: center;
