@@ -16,6 +16,8 @@ build/
 
 # db
 *.db
+*.db-wal
+*.db-shm
 *.sqlite3
 
 # os
