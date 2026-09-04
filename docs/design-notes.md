@@ -203,6 +203,37 @@ section). `status` already models "no longer employed" without destroying
 history, so a destructive delete endpoint would be redundant risk with no
 real use case.
 
+## Admin vs hr_manager: the one difference is user management
+
+Phase 9. CLAUDE.md's RBAC gives `admin` and `hr_manager` identical rights
+over employee and salary data; the *only* thing that separates them is
+"admin ... plus user management". That was speced but never built, so the
+two roles were functionally identical in practice. Added `GET/POST/PATCH/
+DELETE /users` behind `require_role(admin)` and an admin-only `/users`
+page.
+
+Deliberately narrow, to fit the locked `User` schema (`id, email,
+hashed_password, role`) and CLAUDE.md's "no password reset / email
+verification / SSO":
+
+- **No "deactivate".** There's no `is_active` column and the schema is
+  locked, so access is revoked by deleting the user, not flag-flipping.
+  (Unlike `Employee`, a `User` row has no history hanging off it — nothing
+  references it — so a hard delete here is safe, where an `Employee` hard
+  delete would orphan `SalaryRecord`s.)
+- **Two self-lockout guards, enforced server-side:** an admin can't change
+  their own role away from `admin`, and can't delete their own account —
+  otherwise the last admin could strand the org with no way into user
+  management. The frontend also hides the role picker and Remove button on
+  the current user's own row, but the guard is in the router, not just the
+  UI.
+- **Password hashing reuses `services/auth.hash_password`** (bcrypt) — the
+  same path `login` verifies against; nothing new in the crypto surface.
+- **The page stays on the hand-rolled CSS**, not MUI. It's a list+form
+  screen that sits next to Employees in the nav (also hand-rolled); MUI is
+  the Phase 7+ dashboard's language, and one more admin screen isn't worth
+  a second styling system on that side of the app.
+
 ## Enum columns store `.value`, not `.name` (SQLAlchemy default is the opposite)
 
 SQLAlchemy's `Enum` type persists a Python `Enum` member by its **name** by

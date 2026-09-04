@@ -46,29 +46,45 @@ Phase 8 commits in order: `630c7fc` (OpenRouter model allowlist guard) →
 `*.db-wal`/`*.db-shm`) → `81b2e3d` (frontend "Ask a question" box on the
 dashboard). Docs for Phase 8 land in the same commit as this checkpoint.
 
-Backend: **179 pytest tests, all passing** (`cd backend && .venv/bin/python
+Backend: **192 pytest tests, all passing** (`cd backend && .venv/bin/python
 -m pytest -q` — the venv is at `backend/.venv`). Frontend: `tsc -b` clean,
-`oxlint` clean, and **14 Vitest tests** (`cd frontend && npm test`) covering
-the Phase 8 NL-query box; the rest of the UI is `tsc`-only (see Known Gaps).
+`oxlint` clean, and **18 Vitest tests** (`cd frontend && npm test`) covering
+the NL-query box and the admin Users page; the rest of the UI is `tsc`-only
+(see Known Gaps).
 
 ## Exact next action
 
 Phase 9 — polish. Almost everything is done; what's left needs a human:
 
 1. **Record the demo video.** Suggested flow: `docker compose up --build`
-   from clean → land as each of the 3 roles (admin/hr → `/employees`,s exec →
+   from clean → land as each of the 3 roles (admin/hr → `/employees`, exec →
    `/analytics`, exec blocked from `/employees`) → dashboard walk-through →
    the "Ask a question" box (a real question + a write-flavoured one that
-   refuses).
+   refuses) → as admin, the Users page (create an account, change a role;
+   note hr_manager has no Users link).
 2. **Final read-through** of `README.md` and `docs/requirements.md` with
    fresh eyes for anything stale against the shipped Phase 0–8 feature set.
    (Per CLAUDE.md, `requirements.md` is reference-only — don't rewrite it;
    the one known wording gap, "answer in natural language", is deliberately
    documented in `docs/design-notes.md` instead.)
 
-Already done this phase (commits `8d9381b`, `17b4285`, plus verification
-runs that produced no code changes):
+Already done this phase:
 
+- **Admin user-management** (`bfc917d`, `4d1c304`) — the one RBAC capability
+  admin has over hr_manager, previously speced but unbuilt. `GET/POST/PATCH/
+  DELETE /users` behind `require_role(admin)`; an admin-only `/users` page
+  (route- and nav-guarded). Self-lockout guards (can't demote/delete
+  yourself). No "deactivate" — the locked `User` schema has no `is_active`,
+  so delete is how access is revoked. Details in `docs/design-notes.md`
+  ("Admin vs hr_manager").
+- **UI polish** (`4cef7e7`, `e338b18`) — status pills (green active / grey
+  inactive) in the employee list + detail; the Reset button takes the
+  accent colour once there's a filter to clear; the analytics "Ask a
+  question" box got a brass left-rule + tint + sparkle glyph so the stretch
+  feature reads as distinct without breaking the dashboard's hairline
+  aesthetic. Deliberately *not* touched: adding free-text countries/
+  departments (needs a schema change + pressures the currency/seed model —
+  see the AskUserQuestion decision; deferred).
 - `docker compose down -v && up --build` from clean — twice, incl. after the
   frontend test deps landed. First-boot auto-seed → 10,000 employees;
   dashboard total $637.5M; all 3 roles' login + routing + RBAC redirects
@@ -318,16 +334,17 @@ for drift and "corrected" back.
   behaviour is only covered by a manual smoke test, never the suite.
 - **NL query has no rate limiting / cost ceiling of its own.** Fine for a
   free-tier demo; a real deployment would want a per-user throttle.
-- **Frontend test coverage is thin.** Backend has 179 pytest tests. Frontend
-  now has a Vitest suite (`cd frontend && npm test`) — 14 tests covering
-  `NLQueryBox` (submit / ok / out-of-scope / 503 / 422 / example-chip) and
-  the result-table formatting (`nlQueryFormat.ts`) — but only that one
-  Phase 8 component; Phases 1–7 UI is still `tsc`-only, verified historically
-  via ad-hoc Playwright scripts. Config note: Vitest config lives in a
-  standalone `vitest.config.ts` (not `vite.config.ts`) so `tsc -b` doesn't
-  typecheck it — avoids a vite-version type clash with the copy Vitest
-  bundles. `vitest@3`, not 5: `npm install vitest@5` reproducibly hits an
-  npm arborist `edgesOut` bug on this tree.
+- **Frontend test coverage is partial.** Backend has 192 pytest tests.
+  Frontend has a Vitest suite (`cd frontend && npm test`) — 18 tests:
+  `NLQueryBox` (submit / ok / out-of-scope / 503 / 422 / example-chip) +
+  `nlQueryFormat.ts` formatting, and `UsersPage` (self-row restrictions,
+  create flow, rejected role change, delete confirm). Phases 1–7 UI is
+  still `tsc`-only, verified historically via ad-hoc Playwright scripts.
+  Config note: Vitest config lives in a standalone `vitest.config.ts` (not
+  `vite.config.ts`) so `tsc -b` doesn't typecheck it — avoids a
+  vite-version type clash with the copy Vitest bundles. `vitest@3`, not 5:
+  `npm install vitest@5` reproducibly hits an npm arborist `edgesOut` bug
+  on this tree.
 - **No response cache on `/analytics/dashboard`.** Deliberate — after the
   perf pass the endpoint is ~0.15s locally against the 10k seed, and a
   short-TTL cache would add a post-write staleness window during a demo.

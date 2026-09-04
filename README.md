@@ -174,4 +174,6 @@ same password:
 
 `admin` and `hr_manager` have full read/write on employee & salary data;
 `executive_viewer` can only reach the `/analytics/*` endpoints (read-only,
-aggregate data — individual employee records are blocked).
+aggregate data — individual employee records are blocked). **`admin`
+additionally has the Users page** (`/users`, `/users/*` API) for creating
+accounts and setting roles — `hr_manager` gets 403 there.
