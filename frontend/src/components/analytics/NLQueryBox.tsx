@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography'
 import { askAnalytics } from '../../api/analytics'
 import { ApiError } from '../../api/client'
 import type { NLQueryResponse } from '../../types/api'
+import { formatCell, inferColumns, titleCase } from './nlQueryFormat'
 
 const EXAMPLES = [
   'Average salary by country',
@@ -25,28 +26,13 @@ const EXAMPLES = [
   'Promotions in the last 12 months',
 ]
 
-function titleCase(key: string): string {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function formatCell(key: string, value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'number') {
-    return key.endsWith('_usd') || key.includes('payroll') || key.includes('salary')
-      ? value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-      : value.toLocaleString('en-US')
-  }
-  if (typeof value === 'boolean') return value ? 'yes' : 'no'
-  return String(value)
-}
-
 /** Renders the chosen view's output. Almost every analytics view returns an
  *  array of flat objects, so infer columns from the rows; anything else falls
  *  back to formatted JSON. */
 function ResultData({ data }: { data: unknown }) {
-  if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
+  const columns = inferColumns(data)
+  if (columns) {
     const rows = data as Array<Record<string, unknown>>
-    const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
     return (
       <Box sx={{ overflowX: 'auto' }}>
         <Table size="small" aria-label="query result">

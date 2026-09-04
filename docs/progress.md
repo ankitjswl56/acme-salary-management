@@ -44,8 +44,9 @@ Phase 8 commits in order: `630c7fc` (OpenRouter model allowlist guard) →
 dashboard). Docs for Phase 8 land in the same commit as this checkpoint.
 
 Backend: **179 pytest tests, all passing** (`cd backend && .venv/bin/python
--m pytest -q` — the venv is at `backend/.venv`). Frontend: `npx tsc
---noEmit` is clean; no automated test suite exists (see Known Gaps).
+-m pytest -q` — the venv is at `backend/.venv`). Frontend: `tsc -b` clean,
+`oxlint` clean, and **14 Vitest tests** (`cd frontend && npm test`) covering
+the Phase 8 NL-query box; the rest of the UI is `tsc`-only (see Known Gaps).
 
 ## Exact next action
 
@@ -303,11 +304,16 @@ for drift and "corrected" back.
   behaviour is only covered by a manual smoke test, never the suite.
 - **NL query has no rate limiting / cost ceiling of its own.** Fine for a
   free-tier demo; a real deployment would want a per-user throttle.
-- **No automated frontend test suite.** Backend has 179 pytest tests;
-  frontend has zero committed test files and only `tsc --noEmit` for
-  safety. All Phase 6–8 UI verification was ad-hoc Playwright scripts run
-  manually and discarded. If "meaningful tests" grading extends to the
-  frontend, this is a real gap worth raising rather than assuming it's fine.
+- **Frontend test coverage is thin.** Backend has 179 pytest tests. Frontend
+  now has a Vitest suite (`cd frontend && npm test`) — 14 tests covering
+  `NLQueryBox` (submit / ok / out-of-scope / 503 / 422 / example-chip) and
+  the result-table formatting (`nlQueryFormat.ts`) — but only that one
+  Phase 8 component; Phases 1–7 UI is still `tsc`-only, verified historically
+  via ad-hoc Playwright scripts. Config note: Vitest config lives in a
+  standalone `vitest.config.ts` (not `vite.config.ts`) so `tsc -b` doesn't
+  typecheck it — avoids a vite-version type clash with the copy Vitest
+  bundles. `vitest@3`, not 5: `npm install vitest@5` reproducibly hits an
+  npm arborist `edgesOut` bug on this tree.
 - **No response cache on `/analytics/dashboard`.** Deliberate — after the
   perf pass the endpoint is ~0.15s locally against the 10k seed, and a
   short-TTL cache would add a post-write staleness window during a demo.

@@ -144,7 +144,8 @@ Populates 10,000 correlated employees, realistic salary history for
 
 ## Tests
 
-Backend:
+Backend (pytest — the bulk of the suite; current-salary resolution, currency
+math, the 8 aggregations + suppression, RBAC, the NL-query mapping):
 
 ```
 cd backend
@@ -152,7 +153,13 @@ source .venv/bin/activate
 pytest
 ```
 
-<!-- Frontend test commands will be added once the frontend has tests. -->
+Frontend (Vitest — the NL-query box: submit / ok / out-of-scope / error
+states, and the result-table formatting):
+
+```
+cd frontend
+npm test
+```
 
 ## Demo login credentials
 
