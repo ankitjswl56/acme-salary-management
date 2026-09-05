@@ -79,9 +79,8 @@ describe('UsersPage', () => {
     expect(updateMock).toHaveBeenCalledWith(2, 'admin')
   })
 
-  it('confirms before removing a user', async () => {
+  it('shows a confirm dialog before removing a user, not a native confirm', async () => {
     const user = userEvent.setup()
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     deleteMock.mockResolvedValue(undefined)
     render(<UsersPage />)
     await screen.findByText('hr@acme-corp.example')
@@ -89,8 +88,28 @@ describe('UsersPage', () => {
     const otherRow = screen.getByText('hr@acme-corp.example').closest('tr')!
     await user.click(within(otherRow).getByRole('button', { name: 'Remove' }))
 
-    expect(confirmSpy).toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/hr@acme-corp\.example/)).toBeInTheDocument()
+    expect(deleteMock).not.toHaveBeenCalled() // not yet - only after confirming
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith(2))
-    confirmSpy.mockRestore()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('cancelling the confirm dialog does not remove the user', async () => {
+    const user = userEvent.setup()
+    render(<UsersPage />)
+    await screen.findByText('hr@acme-corp.example')
+
+    const otherRow = screen.getByText('hr@acme-corp.example').closest('tr')!
+    await user.click(within(otherRow).getByRole('button', { name: 'Remove' }))
+    const dialog = await screen.findByRole('dialog')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(deleteMock).not.toHaveBeenCalled()
   })
 })

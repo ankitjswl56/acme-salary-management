@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import { createUser, deleteUser, listUsers, updateUserRole } from '../api/users'
 import { useAuth } from '../auth/AuthContext'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { AdminUser, UserRole } from '../types/api'
 
 const ROLES: { value: UserRole; label: string }[] = [
@@ -28,6 +29,8 @@ export function UsersPage() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [rowError, setRowError] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<AdminUser | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function refresh() {
     setLoading(true)
@@ -74,14 +77,23 @@ export function UsersPage() {
     }
   }
 
-  async function handleDelete(user: AdminUser) {
+  function requestDelete(user: AdminUser) {
     setRowError('')
-    if (!window.confirm(`Remove ${user.email}? They will lose all access.`)) return
+    setPendingDelete(user)
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await deleteUser(user.id)
+      await deleteUser(pendingDelete.id)
+      setPendingDelete(null)
       await refresh()
     } catch (err) {
       setRowError(err instanceof ApiError ? err.message : 'Failed to remove the user.')
+      setPendingDelete(null)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -182,7 +194,7 @@ export function UsersPage() {
                       <button
                         type="button"
                         className="secondary"
-                        onClick={() => handleDelete(user)}
+                        onClick={() => requestDelete(user)}
                       >
                         Remove
                       </button>
@@ -194,6 +206,20 @@ export function UsersPage() {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Remove user"
+        confirmLabel="Remove"
+        confirmingLabel="Removing…"
+        confirming={deleting}
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      >
+        Remove {pendingDelete?.email}? They will lose all access immediately, and this can't be
+        undone.
+      </ConfirmDialog>
     </div>
   )
 }

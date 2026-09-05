@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applyBulkRaise, getFilterOptions } from '../api/employees'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { BulkRaiseResponse, ChangeType, CountryOption } from '../types/api'
 
 export function BulkRaisePage() {
@@ -13,6 +14,7 @@ export function BulkRaisePage() {
 
   const [countries, setCountries] = useState<CountryOption[]>([])
   const [departments, setDepartments] = useState<string[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<BulkRaiseResponse | null>(null)
@@ -28,19 +30,19 @@ export function BulkRaisePage() {
       })
   }, [])
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const scope =
+    [country && `country = ${country}`, department && `department = ${department}`].filter(Boolean).join(', ') ||
+    'all active employees'
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setResult(null)
+    setConfirmOpen(true)
+  }
 
-    const scope =
-      [country && `country = ${country}`, department && `department = ${department}`].filter(Boolean).join(', ') ||
-      'all active employees'
-    const confirmed = window.confirm(
-      `Apply a ${percentage}% ${changeType} effective ${effectiveDate} to active employees matching: ${scope}?\n\nThis creates a new salary record for every matching employee and can't be undone with one click.`,
-    )
-    if (!confirmed) return
-
+  async function performRaise() {
+    setConfirmOpen(false)
     setSubmitting(true)
     try {
       const data = await applyBulkRaise({
@@ -151,6 +153,18 @@ export function BulkRaisePage() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Apply bulk raise"
+        confirmLabel="Apply raise"
+        confirmingLabel="Applying…"
+        confirming={submitting}
+        onConfirm={performRaise}
+        onCancel={() => setConfirmOpen(false)}
+      >
+        {`Apply a ${percentage}% ${changeType} effective ${effectiveDate} to active employees matching: ${scope}.\n\nThis creates a new salary record for every matching employee and can't be undone with one click.`}
+      </ConfirmDialog>
     </div>
   )
 }
