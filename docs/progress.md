@@ -5,12 +5,11 @@ conversation history. Read this, `CLAUDE.md`, and `docs/requirements.md`
 before doing anything else — this file assumes both. `docs/design-notes.md`
 and `docs/ai-log.md` carry the "why" behind the decisions summarized here.
 
-**Status as of this checkpoint**: Phases 0–8 of `CLAUDE.md`'s build plan are
-complete and committed, including the stretch NL-analytics-query feature.
-Phase 9 (polish) is nearly done — fresh-rebuild validation, RBAC walk-through,
-graceful-degradation check, README pass, and a first frontend test suite are
-all done. **Only the demo video and a final human review of the whole thing
-remain.**
+**Status as of this checkpoint**: All 9 phases of `CLAUDE.md`'s build plan
+are complete and committed, including the stretch NL-analytics-query
+feature. The demo video is recorded and a final human review passed with
+nothing to fix. **The project is done.** Anything below this point is
+context for picking the codebase back up, not open work.
 
 ## Phase-by-phase status
 
@@ -27,7 +26,7 @@ remain.**
 | — | Auto-seed DB on first startup (zero-step reviewer setup) | ✅ done | `55924ef` |
 | 7 | Frontend: analytics dashboard (8 views, role-gated) | ✅ done | `be68bbb` → `5416fd9` (see below) |
 | 8 | Stretch: NL query via OpenRouter | ✅ done | `630c7fc` → `81b2e3d` (see below) |
-| 9 | Polish (README/docs pass, fresh rebuild, frontend tests, demo video) | 🟡 **mostly done** — demo video + final review left | `8d9381b`, `17b4285` |
+| 9 | Polish (README/docs pass, fresh rebuild, frontend tests, demo video) | ✅ **done** — video recorded, final review passed clean | `8d9381b` → `5a0048f` (see below) |
 
 Phase 7 commits in order: `be68bbb` (add MUI) → `421fdb0` (add
 `@mui/x-charts`) → `db3ecc1` (analytics API types + client wrappers) →
@@ -55,21 +54,12 @@ confirm flow; the rest of the UI is `tsc`-only
 
 ## Exact next action
 
-Phase 9 — polish. Almost everything is done; what's left needs a human:
+None — the project is finished. The demo video is recorded and the final
+human read-through of the whole app came back clean, nothing to fix. If a
+fresh session picks this repo back up, that's for new work the user
+brings, not a continuation of the build plan.
 
-1. **Record the demo video.** Suggested flow: `docker compose up --build`
-   from clean → land as each of the 3 roles (admin/hr → `/employees`, exec →
-   `/analytics`, exec blocked from `/employees`) → dashboard walk-through →
-   the "Ask a question" box (a real question + a write-flavoured one that
-   refuses) → as admin, the Users page (create an account, change a role;
-   note hr_manager has no Users link).
-2. **Final read-through** of `README.md` and `docs/requirements.md` with
-   fresh eyes for anything stale against the shipped Phase 0–8 feature set.
-   (Per CLAUDE.md, `requirements.md` is reference-only — don't rewrite it;
-   the one known wording gap, "answer in natural language", is deliberately
-   documented in `docs/design-notes.md` instead.)
-
-Already done this phase:
+Everything done in Phase 9:
 
 - **ConfirmDialog replaces `window.confirm()`** (`0494dae`) — bulk raise and
   Users "Remove" now open a real styled modal (`src/components/
