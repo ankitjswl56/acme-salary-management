@@ -540,3 +540,35 @@ The allowlist was checked against `https://openrouter.ai/api/v1/models` on
   default. `default_model_caller` retries once on a 429 with a short backoff
   before giving up. `max_tokens` is 600, not ~300, because that model spends
   completion tokens on reasoning before it emits the JSON object.
+
+## ConfirmDialog replaces window.confirm()
+
+Phase 9. Bulk raise and the Users "Remove" action both used
+`window.confirm()` — the browser's own dialog, not the app's. It's a real
+inconsistency, not just a cosmetic one: it can render only one line of flat
+text (bulk raise's confirmation is genuinely three pieces of information —
+the percentage/type/date, the scope, and the can't-undo warning), it can't
+carry a busy/disabled state while the action runs, and visually it breaks
+the illusion that this is one finished product the moment it appears.
+
+`src/components/ConfirmDialog.tsx` is a small, dependency-free modal built
+on the existing hand-rolled CSS (`.card`, `button`, `button.secondary`) plus
+three additions (`.modal-backdrop`, `.modal`, `button.danger`) — not an MUI
+`Dialog`, for the same reason `UsersPage` stayed off MUI: these pages sit
+together and should look like one system, and pulling MUI into Phase 1-6
+territory for one component isn't worth a second styling system there.
+
+Behaviour choices: Escape and a backdrop click both cancel (checked via
+`event.target === event.currentTarget` so a click *inside* the card doesn't
+bubble into a cancel); the Cancel button receives focus on open, so hitting
+Enter out of habit after typing doesn't confirm a destructive action; a
+`confirming` prop disables both buttons and swaps the confirm label to a
+busy string while the real request is in flight, rather than letting a
+second click double-submit.
+
+Both call sites needed a small control-flow change, not just a swap: they
+used to compute their confirmation text and call `window.confirm()`
+synchronously in the middle of the submit handler, blocking until the user
+answered. A real dialog can't block like that, so each site now opens the
+dialog from the form submit / button click and moves the actual API call
+into the dialog's `onConfirm` instead.

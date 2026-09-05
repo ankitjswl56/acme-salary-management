@@ -48,8 +48,9 @@ dashboard). Docs for Phase 8 land in the same commit as this checkpoint.
 
 Backend: **192 pytest tests, all passing** (`cd backend && .venv/bin/python
 -m pytest -q` — the venv is at `backend/.venv`). Frontend: `tsc -b` clean,
-`oxlint` clean, and **18 Vitest tests** (`cd frontend && npm test`) covering
-the NL-query box and the admin Users page; the rest of the UI is `tsc`-only
+`oxlint` clean, and **29 Vitest tests** (`cd frontend && npm test`) covering
+the NL-query box, the admin Users page, `ConfirmDialog`, and the bulk-raise
+confirm flow; the rest of the UI is `tsc`-only
 (see Known Gaps).
 
 ## Exact next action
@@ -70,6 +71,14 @@ Phase 9 — polish. Almost everything is done; what's left needs a human:
 
 Already done this phase:
 
+- **ConfirmDialog replaces `window.confirm()`** (`0494dae`) — bulk raise and
+  Users "Remove" now open a real styled modal (`src/components/
+  ConfirmDialog.tsx`: title, wrapping body, Cancel/Confirm, a `danger`
+  variant, a `confirming` busy state, Esc/backdrop-click to cancel) instead
+  of the browser's own dialog. Both call sites needed a control-flow change
+  — `window.confirm()` blocked synchronously in the submit handler; the
+  modal instead opens on submit and the real API call moves into
+  `onConfirm`. Details in `docs/design-notes.md`.
 - **Admin user-management** (`bfc917d`, `4d1c304`) — the one RBAC capability
   admin has over hr_manager, previously speced but unbuilt. `GET/POST/PATCH/
   DELETE /users` behind `require_role(admin)`; an admin-only `/users` page
@@ -335,11 +344,15 @@ for drift and "corrected" back.
 - **NL query has no rate limiting / cost ceiling of its own.** Fine for a
   free-tier demo; a real deployment would want a per-user throttle.
 - **Frontend test coverage is partial.** Backend has 192 pytest tests.
-  Frontend has a Vitest suite (`cd frontend && npm test`) — 18 tests:
+  Frontend has a Vitest suite (`cd frontend && npm test`) — 29 tests:
   `NLQueryBox` (submit / ok / out-of-scope / 503 / 422 / example-chip) +
-  `nlQueryFormat.ts` formatting, and `UsersPage` (self-row restrictions,
-  create flow, rejected role change, delete confirm). Phases 1–7 UI is
-  still `tsc`-only, verified historically via ad-hoc Playwright scripts.
+  `nlQueryFormat.ts` formatting; `UsersPage` (self-row restrictions, create
+  flow, rejected role change, delete confirm via the dialog);
+  `ConfirmDialog` itself (open/closed, Esc, backdrop click, focus, confirming
+  state, custom labels); `BulkRaisePage`'s confirm flow (dialog names the
+  scope, cancel doesn't call the API, confirm does and renders the result).
+  Everything else in Phases 1–7 is still `tsc`-only, verified historically
+  via ad-hoc Playwright scripts.
   Config note: Vitest config lives in a standalone `vitest.config.ts` (not
   `vite.config.ts`) so `tsc -b` doesn't typecheck it — avoids a
   vite-version type clash with the copy Vitest bundles. `vitest@3`, not 5:
